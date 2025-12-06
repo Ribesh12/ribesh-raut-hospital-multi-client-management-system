@@ -10,7 +10,7 @@ export const authenticate = (req, res, next) => {
 
     const decoded = jwt.verify(
       token,
-      process.env.JWT_SECRET || 'JWT_SECRET_KEY'
+      process.env.JWT_SECRET || 'your_secret_key'
     );
 
     req.user = decoded;
