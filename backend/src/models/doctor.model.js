@@ -23,6 +23,23 @@ const doctorSchema = new mongoose.Schema(
       ref: 'Hospital',
       required: true,
     },
+    qualifications: {
+      type: String,
+      default: '',
+    },
+    experience: {
+      type: Number,
+      default: 0,
+      description: 'Years of experience',
+    },
+    bio: {
+      type: String,
+      default: '',
+    },
+    consultationFee: {
+      type: Number,
+      default: 0,
+    },
   },
   { timestamps: true }
 );

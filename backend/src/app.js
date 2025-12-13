@@ -3,6 +3,7 @@ import cors from 'cors';
 import authRoutes from './routes/auth.routes.js';
 import doctorRoutes from './routes/doctor.routes.js';
 import contactFormRoutes from './routes/contactForm.routes.js';
+import appointmentRoutes from './routes/appointment.routes.js';
 
 const app = express();
 
@@ -22,6 +23,7 @@ app.get('/', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/doctors', doctorRoutes);
 app.use('/api/contact-forms', contactFormRoutes);
+app.use('/api/appointments', appointmentRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
