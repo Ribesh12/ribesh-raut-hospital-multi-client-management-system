@@ -1,17 +1,25 @@
 import Appointment from '../models/appointment.model.js';
 import Doctor from '../models/doctor.model.js';
+import Hospital from '../models/hospital.model.js';
+import {
+  createAppointmentSchema,
+  updateAppointmentStatusSchema,
+  cancelAppointmentSchema,
+} from '../joi/appointment.joi.js';
+import {
+  sendAppointmentConfirmationToDoctor,
+  sendAppointmentCancellationToDoctor,
+} from '../services/email.service.js';
 
 export const createAppointmentRequest = async (req, res) => {
   try {
-    const { doctorId, hospitalId, appointmentDate, duration, notes, userName, userEmail, userPhone } = req.body;
-
-    if (!doctorId || !hospitalId || !appointmentDate || !duration || !userName || !userEmail || !userPhone) {
-      return res.status(400).json({ error: 'All required fields must be provided' });
+    const { error, value } = createAppointmentSchema.validate(req.body);
+    if (error) {
+      const messages = error.details.map((detail) => detail.message);
+      return res.status(400).json({ errors: messages });
     }
 
-    if (![30, 45, 60].includes(duration)) {
-      return res.status(400).json({ error: 'Duration must be 30, 45, or 60 minutes' });
-    }
+    const { doctorId, hospitalId, appointmentDate, duration, notes, userName, userEmail, userPhone, userId } = value;
 
     const appointmentDateObj = new Date(appointmentDate);
     if (appointmentDateObj < new Date()) {
@@ -23,7 +31,6 @@ export const createAppointmentRequest = async (req, res) => {
       return res.status(404).json({ error: 'Doctor not found' });
     }
 
-    // Check for overlapping appointments
     const appointmentEndTime = new Date(appointmentDateObj.getTime() + duration * 60000);
     const existingAppointments = await Appointment.find({
       doctorId,
@@ -42,7 +49,7 @@ export const createAppointmentRequest = async (req, res) => {
 
     const appointment = new Appointment({
       doctorId,
-      userId: req.body.userId || 'guest',
+      userId: userId || 'guest',
       userName,
       userEmail,
       userPhone,
@@ -135,12 +142,14 @@ export const getAppointmentsByHospital = async (req, res) => {
 
 export const updateAppointmentStatus = async (req, res) => {
   try {
-    const { appointmentId } = req.params;
-    const { status, adminNotes } = req.body;
-
-    if (!status || !['pending', 'confirmed', 'cancelled', 'completed'].includes(status)) {
-      return res.status(400).json({ error: 'Invalid status value' });
+    const { error, value } = updateAppointmentStatusSchema.validate(req.body);
+    if (error) {
+      const messages = error.details.map((detail) => detail.message);
+      return res.status(400).json({ errors: messages });
     }
+
+    const { appointmentId } = req.params;
+    const { status, adminNotes } = value;
 
     const appointment = await Appointment.findByIdAndUpdate(
       appointmentId,
@@ -157,6 +166,26 @@ export const updateAppointmentStatus = async (req, res) => {
       return res.status(404).json({ error: 'Appointment not found' });
     }
 
+    // Send confirmation email to doctor if appointment is confirmed
+    if (status === 'confirmed' && appointment.doctorId && appointment.doctorId.email) {
+      const hospital = await Hospital.findById(appointment.hospitalId);
+      const emailData = {
+        doctorEmail: appointment.doctorId.email,
+        doctorName: appointment.doctorId.name,
+        patientName: appointment.userName,
+        patientEmail: appointment.userEmail,
+        patientPhone: appointment.userPhone,
+        appointmentDate: appointment.appointmentDate,
+        duration: appointment.duration,
+        hospitalName: hospital?.name || 'Hospital',
+        notes: appointment.notes,
+      };
+
+      sendAppointmentConfirmationToDoctor(emailData).catch((err) => {
+        console.error('Failed to send confirmation email:', err);
+      });
+    }
+
     res.status(200).json({
       message: 'Appointment status updated successfully',
       appointment,
@@ -168,8 +197,14 @@ export const updateAppointmentStatus = async (req, res) => {
 
 export const cancelAppointment = async (req, res) => {
   try {
+    const { error, value } = cancelAppointmentSchema.validate(req.body);
+    if (error) {
+      const messages = error.details.map((detail) => detail.message);
+      return res.status(400).json({ errors: messages });
+    }
+
     const { appointmentId } = req.params;
-    const { reason } = req.body;
+    const { reason } = value;
 
     const appointment = await Appointment.findByIdAndUpdate(
       appointmentId,
@@ -184,6 +219,22 @@ export const cancelAppointment = async (req, res) => {
 
     if (!appointment) {
       return res.status(404).json({ error: 'Appointment not found' });
+    }
+
+    if (appointment.doctorId && appointment.doctorId.email) {
+      const hospital = await Hospital.findById(appointment.hospitalId);
+      const emailData = {
+        doctorEmail: appointment.doctorId.email,
+        doctorName: appointment.doctorId.name,
+        patientName: appointment.userName,
+        appointmentDate: appointment.appointmentDate,
+        hospitalName: hospital?.name || 'Hospital',
+        cancellationReason: reason || 'Cancelled',
+      };
+
+      sendAppointmentCancellationToDoctor(emailData).catch((err) => {
+        console.error('Failed to send cancellation email:', err);
+      });
     }
 
     res.status(200).json({
