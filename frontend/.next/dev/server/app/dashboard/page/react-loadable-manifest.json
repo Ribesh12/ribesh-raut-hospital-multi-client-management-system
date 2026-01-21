@@ -1,0 +1,9 @@
+{
+  "[project]/node_modules/.pnpm/react-apexcharts@1.9.0_apexcharts@5.3.6_react@19.2.3/node_modules/react-apexcharts/dist/react-apexcharts.esm.js [app-client] (ecmascript, next/dynamic entry)": {
+    "id": "[project]/node_modules/.pnpm/react-apexcharts@1.9.0_apexcharts@5.3.6_react@19.2.3/node_modules/react-apexcharts/dist/react-apexcharts.esm.js [app-client] (ecmascript, next/dynamic entry)",
+    "files": [
+      "static/chunks/node_modules__pnpm_74ed9e91._.js",
+      "static/chunks/0f395_react-apexcharts_dist_react-apexcharts_esm_1c6231c9.js"
+    ]
+  }
+}
