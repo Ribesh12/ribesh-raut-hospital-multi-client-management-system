@@ -19,24 +19,24 @@ export function Footer() {
   return (
     <footer className="bg-foreground text-white">
       {/* Newsletter Section */}
-      <div className="bg-primary py-12">
+      <div className="bg-primary py-8 md:py-12">
         <div className="container mx-auto px-4">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
             <div>
-              <h3 className="text-2xl font-bold text-white">
+              <h3 className="text-xl md:text-2xl font-bold text-white">
                 Subscribe to Our Newsletter
               </h3>
-              <p className="text-white/80">
+              <p className="text-white/80 text-sm md:text-base">
                 Get the latest updates on healthcare management
               </p>
             </div>
-            <div className="flex gap-2 w-full md:w-auto">
+            <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
               <Input
                 type="email"
                 placeholder="Enter your email"
                 className="bg-white text-foreground border-0 w-full md:w-80"
               />
-              <Button variant="secondary">
+              <Button variant="secondary" className="whitespace-nowrap">
                 Subscribe
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
@@ -46,30 +46,30 @@ export function Footer() {
       </div>
 
       {/* Main Footer */}
-      <div className="py-16">
+      <div className="py-10 md:py-16">
         <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-8 md:gap-12">
             {/* Brand Column */}
-            <div className="lg:col-span-2">
+            <div className="sm:col-span-2 lg:col-span-2">
               <div className="mb-4">
                 <LogoFull variant="white" />
               </div>
-              <p className="text-white/70 mb-6 max-w-sm">
+              <p className="text-white/70 mb-6 max-w-sm text-sm md:text-base">
                 MediCare Hub is a comprehensive multi-tenant hospital management
                 system designed to streamline healthcare operations for modern
                 medical facilities.
               </p>
-              <div className="space-y-3">
-                <div className="flex items-center gap-3 text-white/70">
-                  <MapPin className="h-5 w-5 text-primary" />
+              <div className="space-y-3 text-sm">
+                <div className="flex items-start gap-3 text-white/70">
+                  <MapPin className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
                   <span>123 Healthcare Avenue, Medical District, NY 10001</span>
                 </div>
                 <div className="flex items-center gap-3 text-white/70">
-                  <Phone className="h-5 w-5 text-primary" />
+                  <Phone className="h-5 w-5 text-primary flex-shrink-0" />
                   <span>+1 (555) 000-0000</span>
                 </div>
                 <div className="flex items-center gap-3 text-white/70">
-                  <Mail className="h-5 w-5 text-primary" />
+                  <Mail className="h-5 w-5 text-primary flex-shrink-0" />
                   <span>support@medicarehub.com</span>
                 </div>
               </div>
@@ -175,17 +175,17 @@ export function Footer() {
             </div>
           </div>
 
-          <Separator className="my-10 bg-white/20" />
+          <Separator className="my-8 md:my-10 bg-white/20" />
 
           {/* Bottom Footer */}
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <p className="text-white/60 text-sm">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4 md:gap-6">
+            <p className="text-white/60 text-xs md:text-sm text-center md:text-left">
               © 2026 MediCare Hub. All rights reserved. Designed for modern
               healthcare.
             </p>
 
             {/* Social Icons */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 md:gap-4">
               <Link
                 href="#"
                 className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center"

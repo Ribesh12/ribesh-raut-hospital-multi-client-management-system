@@ -18,9 +18,9 @@ import {
 } from "@/components/ui/accordion";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Marquee } from "@/components/ui/marquee";
+import { ContactForm } from "@/components/contact-form";
 import {
   Calendar,
   Users,
@@ -592,11 +592,11 @@ export default function Home() {
               </h2>
             </div>
             <Tabs defaultValue="appointments" className="max-w-4xl mx-auto">
-              <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="appointments">Appointments</TabsTrigger>
-                <TabsTrigger value="doctors">Doctors</TabsTrigger>
-                <TabsTrigger value="patients">Patients</TabsTrigger>
-                <TabsTrigger value="analytics">Analytics</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
+                <TabsTrigger value="appointments" className="text-xs md:text-sm">Appointments</TabsTrigger>
+                <TabsTrigger value="doctors" className="text-xs md:text-sm">Doctors</TabsTrigger>
+                <TabsTrigger value="patients" className="text-xs md:text-sm">Patients</TabsTrigger>
+                <TabsTrigger value="analytics" className="text-xs md:text-sm">Analytics</TabsTrigger>
               </TabsList>
               <TabsContent value="appointments" className="mt-6">
                 <Card>
@@ -775,35 +775,35 @@ export default function Home() {
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <Card className="text-center p-6 bg-white">
-                  <div className="text-4xl font-bold text-green-600 mb-2">
+                <Card className="text-center p-4 md:p-6 bg-white">
+                  <div className="text-3xl md:text-4xl font-bold text-green-600 mb-2">
                     40%
                   </div>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-xs md:text-sm text-muted-foreground">
                     Reduction in no-shows
                   </p>
                 </Card>
-                <Card className="text-center p-6 bg-white">
-                  <div className="text-4xl font-bold text-green-600 mb-2">
+                <Card className="text-center p-4 md:p-6 bg-white">
+                  <div className="text-3xl md:text-4xl font-bold text-green-600 mb-2">
                     60%
                   </div>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-xs md:text-sm text-muted-foreground">
                     Faster check-in times
                   </p>
                 </Card>
-                <Card className="text-center p-6 bg-white">
-                  <div className="text-4xl font-bold text-green-600 mb-2">
+                <Card className="text-center p-4 md:p-6 bg-white">
+                  <div className="text-3xl md:text-4xl font-bold text-green-600 mb-2">
                     3x
                   </div>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-xs md:text-sm text-muted-foreground">
                     Staff productivity increase
                   </p>
                 </Card>
-                <Card className="text-center p-6 bg-white">
-                  <div className="text-4xl font-bold text-green-600 mb-2">
+                <Card className="text-center p-4 md:p-6 bg-white">
+                  <div className="text-3xl md:text-4xl font-bold text-green-600 mb-2">
                     50%
                   </div>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-xs md:text-sm text-muted-foreground">
                     Less administrative work
                   </p>
                 </Card>
@@ -1085,42 +1085,7 @@ export default function Home() {
                   </div>
                 </div>
               </div>
-              <Card className="bg-white">
-                <CardContent className="pt-6">
-                  <form className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">
-                          First Name
-                        </label>
-                        <Input placeholder="John" />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Last Name</label>
-                        <Input placeholder="Doe" />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Email</label>
-                      <Input type="email" placeholder="john@hospital.com" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">
-                        Hospital Name
-                      </label>
-                      <Input placeholder="City General Hospital" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Message</label>
-                      <textarea
-                        className="w-full min-h-30 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                        placeholder="Tell us about your needs..."
-                      />
-                    </div>
-                    <Button className="w-full">Send Message</Button>
-                  </form>
-                </CardContent>
-              </Card>
+              <ContactForm />
             </div>
           </div>
         </section>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +20,8 @@ import {
   Inbox,
   Star,
   StarOff,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -27,116 +29,66 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { contactFormAPI, APIError } from "@/lib/api";
 
 type Message = {
   id: string;
+  _id: string;
   name: string;
   email: string;
   phone: string;
   subject: string;
   message: string;
-  date: string;
-  isRead: boolean;
+  createdAt: string;
+  status: string;
   isStarred: boolean;
-  image: string;
+  image?: string;
 };
-
-const initialMessages: Message[] = [
-  {
-    id: "1",
-    name: "John Smith",
-    email: "john.smith@email.com",
-    phone: "+1 555-0201",
-    subject: "Inquiry about cardiac services",
-    message:
-      "Hello, I would like to inquire about the cardiac consultation services available at your hospital. I have been experiencing some chest discomfort lately and would like to schedule an appointment with a cardiologist. Could you please provide me with information about the available doctors and their schedules? Thank you.",
-    date: "2024-01-15T10:30:00",
-    isRead: false,
-    isStarred: true,
-    image:
-      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face",
-  },
-  {
-    id: "2",
-    name: "Emily Johnson",
-    email: "emily.j@email.com",
-    phone: "+1 555-0202",
-    subject: "Appointment rescheduling request",
-    message:
-      "Hi, I had an appointment scheduled for tomorrow with Dr. Sarah Wilson, but unfortunately I need to reschedule due to a work emergency. Could you please help me find an alternative time slot? I apologize for any inconvenience this may cause.",
-    date: "2024-01-15T09:15:00",
-    isRead: false,
-    isStarred: false,
-    image:
-      "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=face",
-  },
-  {
-    id: "3",
-    name: "Robert Davis",
-    email: "robert.davis@email.com",
-    phone: "+1 555-0203",
-    subject: "Feedback on recent visit",
-    message:
-      "I wanted to take a moment to thank your staff for the excellent care I received during my recent visit. Dr. Michael Chen was very thorough and professional. The nurses were also very attentive and kind. I would definitely recommend your hospital to friends and family.",
-    date: "2024-01-14T16:45:00",
-    isRead: true,
-    isStarred: true,
-    image:
-      "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop&crop=face",
-  },
-  {
-    id: "4",
-    name: "Maria Garcia",
-    email: "maria.g@email.com",
-    phone: "+1 555-0204",
-    subject: "Insurance coverage question",
-    message:
-      "Hello, I am considering switching to your hospital for my healthcare needs. Before I do, I would like to know if you accept Blue Cross Blue Shield insurance? Also, what documents would I need to bring for my first visit? Thank you for your help.",
-    date: "2024-01-14T14:20:00",
-    isRead: true,
-    isStarred: false,
-    image:
-      "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop&crop=face",
-  },
-  {
-    id: "5",
-    name: "David Miller",
-    email: "david.miller@email.com",
-    phone: "+1 555-0205",
-    subject: "Pediatric services inquiry",
-    message:
-      "We recently moved to the area and are looking for a pediatrician for our two children. Could you provide information about your pediatric department, including the doctors available and vaccination schedules? We would also like to know about your operating hours.",
-    date: "2024-01-14T11:00:00",
-    isRead: true,
-    isStarred: false,
-    image:
-      "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face",
-  },
-  {
-    id: "6",
-    name: "Sarah Thompson",
-    email: "sarah.t@email.com",
-    phone: "+1 555-0206",
-    subject: "Lab results inquiry",
-    message:
-      "Good morning, I visited your hospital last week for some blood tests and was told the results would be ready in 3-5 business days. It has been a week now and I haven't received any communication. Could you please check on the status of my lab results? My patient ID is PT-2024-0892.",
-    date: "2024-01-13T08:30:00",
-    isRead: true,
-    isStarred: false,
-    image:
-      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop&crop=face",
-  },
-];
 
 type FilterType = "all" | "unread" | "starred";
 
 export default function MessagesPage() {
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [filter, setFilter] = useState<FilterType>("all");
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [hospitalId, setHospitalId] = useState<string>("");
 
-  const unreadCount = messages.filter((m) => !m.isRead).length;
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem("userInfo") || "{}");
+    const hId = user?.hospitalId || user?._id || user?.id;
+    if (hId) {
+      setHospitalId(hId);
+      fetchMessages(hId);
+    } else {
+      setError("Hospital ID not found. Please log in again.");
+      setIsLoading(false);
+    }
+  }, []);
+
+  const fetchMessages = async (hId: string) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const response = await contactFormAPI.getByHospital(hId);
+      const fetchedMessages = (response.data || []).map((msg: any) => ({
+        ...msg,
+        id: msg._id,
+        isStarred: msg.isStarred || false,
+        subject: msg.subject || "General Inquiry",
+      }));
+      setMessages(fetchedMessages);
+    } catch (err: any) {
+      console.error("Error fetching messages:", err);
+      setError(err.message || "Failed to load messages");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const unreadCount = messages.filter((m) => m.status === "unread").length;
 
   const filteredMessages = messages.filter((message) => {
     const matchesSearch =
@@ -144,48 +96,82 @@ export default function MessagesPage() {
       message.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
       message.email.toLowerCase().includes(searchQuery.toLowerCase());
 
-    if (filter === "unread") return matchesSearch && !message.isRead;
+    if (filter === "unread") return matchesSearch && message.status === "unread";
     if (filter === "starred") return matchesSearch && message.isStarred;
     return matchesSearch;
   });
 
-  const handleSelectMessage = (message: Message) => {
-    if (!message.isRead) {
+  const handleSelectMessage = async (message: Message) => {
+    // Mark as read on the server when selecting
+    if (message.status === "unread") {
+      try {
+        await contactFormAPI.updateStatus(message._id, { status: "read" });
+        setMessages((prev) =>
+          prev.map((m) => (m._id === message._id ? { ...m, status: "read" } : m)),
+        );
+      } catch (err) {
+        console.error("Error marking message as read:", err);
+      }
+    }
+    setSelectedMessage({ ...message, status: "read" });
+  };
+
+  const handleMarkAsUnread = async (id: string) => {
+    try {
+      await contactFormAPI.updateStatus(id, { status: "unread" });
       setMessages((prev) =>
-        prev.map((m) => (m.id === message.id ? { ...m, isRead: true } : m)),
+        prev.map((m) => (m._id === id ? { ...m, status: "unread" } : m)),
       );
-    }
-    setSelectedMessage({ ...message, isRead: true });
-  };
-
-  const handleMarkAsUnread = (id: string) => {
-    setMessages((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, isRead: false } : m)),
-    );
-    setSelectedMessage(null);
-  };
-
-  const handleToggleStar = (id: string, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    setMessages((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, isStarred: !m.isStarred } : m)),
-    );
-    if (selectedMessage?.id === id) {
-      setSelectedMessage((prev) =>
-        prev ? { ...prev, isStarred: !prev.isStarred } : null,
-      );
-    }
-  };
-
-  const handleDelete = (id: string) => {
-    setMessages((prev) => prev.filter((m) => m.id !== id));
-    if (selectedMessage?.id === id) {
       setSelectedMessage(null);
+    } catch (err) {
+      console.error("Error marking message as unread:", err);
     }
   };
 
-  const handleMarkAllAsRead = () => {
-    setMessages((prev) => prev.map((m) => ({ ...m, isRead: true })));
+  const handleToggleStar = async (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const message = messages.find((m) => m._id === id);
+    if (!message) return;
+
+    const newStarredStatus = !message.isStarred;
+    
+    try {
+      await contactFormAPI.updateStatus(id, { isStarred: newStarredStatus });
+      setMessages((prev) =>
+        prev.map((m) => (m._id === id ? { ...m, isStarred: newStarredStatus } : m)),
+      );
+      if (selectedMessage?._id === id) {
+        setSelectedMessage((prev) =>
+          prev ? { ...prev, isStarred: newStarredStatus } : null,
+        );
+      }
+    } catch (err) {
+      console.error("Error toggling star:", err);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await contactFormAPI.delete(id);
+      setMessages((prev) => prev.filter((m) => m._id !== id));
+      if (selectedMessage?._id === id) {
+        setSelectedMessage(null);
+      }
+    } catch (err) {
+      console.error("Error deleting message:", err);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    const unreadMessages = messages.filter((m) => m.status === "unread");
+    try {
+      await Promise.all(
+        unreadMessages.map((m) => contactFormAPI.updateStatus(m._id, { status: "read" }))
+      );
+      setMessages((prev) => prev.map((m) => ({ ...m, status: "read" })));
+    } catch (err) {
+      console.error("Error marking all as read:", err);
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -217,6 +203,36 @@ export default function MessagesPage() {
       hour12: true,
     });
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-8rem)]">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading messages...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="h-[calc(100vh-8rem)]">
+        <Card className="bg-destructive/10 border-destructive">
+          <div className="flex items-center gap-4 p-6">
+            <AlertCircle className="h-6 w-6 text-destructive flex-shrink-0" />
+            <div className="flex-1">
+              <p className="font-semibold text-destructive">Error Loading Messages</p>
+              <p className="text-sm text-destructive/80">{error}</p>
+            </div>
+            <Button onClick={() => fetchMessages(hospitalId)} variant="outline" size="sm">
+              Retry
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="h-[calc(100vh-8rem)]">
@@ -289,11 +305,11 @@ export default function MessagesPage() {
               ) : (
                 filteredMessages.map((message) => (
                   <div
-                    key={message.id}
+                    key={message._id}
                     onClick={() => handleSelectMessage(message)}
                     className={`p-4 border-b border-border cursor-pointer transition-colors hover:bg-muted/50 ${
-                      !message.isRead ? "bg-primary/5" : ""
-                    } ${selectedMessage?.id === message.id ? "bg-muted" : ""}`}
+                      message.status === "unread" ? "bg-primary/5" : ""
+                    } ${selectedMessage?._id === message._id ? "bg-muted" : ""}`}
                   >
                     <div className="flex gap-3">
                       <Avatar className="h-10 w-10 shrink-0">
@@ -309,7 +325,7 @@ export default function MessagesPage() {
                         <div className="flex items-center justify-between gap-2 mb-0.5">
                           <span
                             className={`truncate ${
-                              !message.isRead
+                              message.status === "unread"
                                 ? "font-semibold text-foreground"
                                 : "font-medium text-muted-foreground"
                             }`}
@@ -318,7 +334,7 @@ export default function MessagesPage() {
                           </span>
                           <div className="flex items-center gap-1 shrink-0">
                             <button
-                              onClick={(e) => handleToggleStar(message.id, e)}
+                              onClick={(e) => handleToggleStar(message._id, e)}
                               className="p-1 hover:bg-muted rounded"
                             >
                               {message.isStarred ? (
@@ -328,13 +344,13 @@ export default function MessagesPage() {
                               )}
                             </button>
                             <span className="text-xs text-muted-foreground">
-                              {formatDate(message.date)}
+                              {formatDate(message.createdAt)}
                             </span>
                           </div>
                         </div>
                         <p
                           className={`text-sm truncate mb-1 ${
-                            !message.isRead
+                            message.status === "unread"
                               ? "font-medium text-foreground"
                               : "text-muted-foreground"
                           }`}
@@ -391,7 +407,7 @@ export default function MessagesPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleToggleStar(selectedMessage.id)}
+                        onClick={() => handleToggleStar(selectedMessage._id)}
                       >
                         {selectedMessage.isStarred ? (
                           <Star className="h-5 w-5 fill-yellow-400 text-yellow-400" />
@@ -408,14 +424,14 @@ export default function MessagesPage() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem
                             onClick={() =>
-                              handleMarkAsUnread(selectedMessage.id)
+                              handleMarkAsUnread(selectedMessage._id)
                             }
                           >
                             <Mail className="h-4 w-4 mr-2" />
                             Mark as unread
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() => handleDelete(selectedMessage.id)}
+                            onClick={() => handleDelete(selectedMessage._id)}
                             className="text-destructive"
                           >
                             <Trash2 className="h-4 w-4 mr-2" />
@@ -452,7 +468,7 @@ export default function MessagesPage() {
                       <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1 flex-wrap">
                         <span className="flex items-center gap-1">
                           <Clock className="h-3.5 w-3.5 shrink-0" />
-                          {formatFullDate(selectedMessage.date)}
+                          {formatFullDate(selectedMessage.createdAt)}
                         </span>
                         <span className="flex items-center gap-1">
                           <Phone className="h-3.5 w-3.5 shrink-0" />
@@ -484,7 +500,7 @@ export default function MessagesPage() {
                     <Button
                       variant="outline"
                       className="gap-2"
-                      onClick={() => handleMarkAsUnread(selectedMessage.id)}
+                      onClick={() => handleMarkAsUnread(selectedMessage._id)}
                     >
                       <MailOpen className="h-4 w-4" />
                       Mark as Unread
@@ -492,7 +508,7 @@ export default function MessagesPage() {
                     <Button
                       variant="outline"
                       className="gap-2 text-destructive hover:text-destructive"
-                      onClick={() => handleDelete(selectedMessage.id)}
+                      onClick={() => handleDelete(selectedMessage._id)}
                     >
                       <Trash2 className="h-4 w-4" />
                       Delete

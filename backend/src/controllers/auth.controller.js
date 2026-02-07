@@ -9,18 +9,28 @@ import jwt from 'jsonwebtoken';
 
 export const login = async (req, res) => {
   try {
+    console.time('login-total');
+    console.time('validation');
     const { error, value } = adminLoginSchema.validate(req.body);
     if (error) {
       const messages = error.details.map((detail) => detail.message);
       return res.status(400).json({ errors: messages });
     }
+    console.timeEnd('validation');
 
     const { username, password } = value;
 
-    let user = await Admin.findOne({ username });
+    console.time('admin-query');
+    let user = await Admin.findOne({ username }).lean();
+    console.timeEnd('admin-query');
+    
     if (user) {
+      console.time('bcrypt-compare-admin');
       const isPasswordValid = await bcrypt.compare(password, user.password);
+      console.timeEnd('bcrypt-compare-admin');
+      
       if (!isPasswordValid) {
+        console.timeEnd('login-total');
         return res.status(401).json({ error: 'Invalid username or password' });
       }
 
@@ -30,6 +40,7 @@ export const login = async (req, res) => {
         { expiresIn: '24h' }
       );
 
+      console.timeEnd('login-total');
       return res.status(200).json({
         message: 'Website Admin login successful',
         userType: 'website_admin',
@@ -38,10 +49,17 @@ export const login = async (req, res) => {
       });
     }
 
-    user = await Hospital.findOne({ email: username });
+    console.time('hospital-query');
+    user = await Hospital.findOne({ email: username }).lean();
+    console.timeEnd('hospital-query');
+    
     if (user) {
+      console.time('bcrypt-compare-hospital');
       const isPasswordValid = await bcrypt.compare(password, user.password);
+      console.timeEnd('bcrypt-compare-hospital');
+      
       if (!isPasswordValid) {
+        console.timeEnd('login-total');
         return res.status(401).json({ error: 'Invalid username or password' });
       }
 
@@ -51,14 +69,16 @@ export const login = async (req, res) => {
         { expiresIn: '24h' }
       );
 
+      console.timeEnd('login-total');
       return res.status(200).json({
         message: 'Hospital Admin login successful',
         userType: 'hospital_admin',
         token,
-        user: { id: user._id, email: user.email, name: user.name },
+        user: { id: user._id, email: user.email, name: user.name, hospitalId: user._id },
       });
     }
 
+    console.timeEnd('login-total');
     return res.status(401).json({
       error: 'Invalid username or password',
     });
@@ -146,6 +166,7 @@ export const registerHospitalAdmin = async (req, res) => {
         id: newHospital._id,
         name: newHospital.name,
         email: newHospital.email,
+        hospitalId: newHospital._id,
       },
     });
   } catch (error) {

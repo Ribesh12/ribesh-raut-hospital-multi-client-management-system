@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/ui/data-table";
 import { Button } from "@/components/ui/button";
@@ -44,14 +44,17 @@ import {
   Activity,
   Eye,
   Ear,
+  Loader2,
 } from "lucide-react";
+import { serviceAPI } from "@/lib/api";
 
 type Service = {
-  id: string;
+  _id: string;
   name: string;
   category: string;
   description: string;
   duration: number;
+  price: number;
   status: "Active" | "Inactive";
   icon: string;
 };
@@ -66,89 +69,6 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Eye,
   Ear,
 };
-
-const initialServices: Service[] = [
-  {
-    id: "1",
-    name: "Cardiac Consultation",
-    category: "Cardiology",
-    description:
-      "Comprehensive heart health evaluation including ECG and blood pressure monitoring.",
-    duration: 45,
-    status: "Active",
-    icon: "Heart",
-  },
-  {
-    id: "2",
-    name: "Neurological Assessment",
-    category: "Neurology",
-    description:
-      "Complete neurological examination and cognitive function testing.",
-    duration: 60,
-    status: "Active",
-    icon: "Brain",
-  },
-  {
-    id: "3",
-    name: "Orthopedic Consultation",
-    category: "Orthopedics",
-    description:
-      "Bone and joint evaluation, X-ray analysis, and treatment planning.",
-    duration: 30,
-    status: "Active",
-    icon: "Bone",
-  },
-  {
-    id: "4",
-    name: "Pediatric Checkup",
-    category: "Pediatrics",
-    description:
-      "Routine health examination for children including vaccinations.",
-    duration: 30,
-    status: "Active",
-    icon: "Baby",
-  },
-  {
-    id: "5",
-    name: "General Health Checkup",
-    category: "General Medicine",
-    description:
-      "Complete body checkup including blood tests and vital signs monitoring.",
-    duration: 60,
-    status: "Active",
-    icon: "Stethoscope",
-  },
-  {
-    id: "6",
-    name: "Physical Therapy Session",
-    category: "Rehabilitation",
-    description:
-      "Therapeutic exercises and manual therapy for injury recovery.",
-    duration: 45,
-    status: "Inactive",
-    icon: "Activity",
-  },
-  {
-    id: "7",
-    name: "Eye Examination",
-    category: "Ophthalmology",
-    description:
-      "Comprehensive eye test including vision acuity and glaucoma screening.",
-    duration: 30,
-    status: "Active",
-    icon: "Eye",
-  },
-  {
-    id: "8",
-    name: "ENT Consultation",
-    category: "ENT",
-    description:
-      "Ear, nose, and throat examination and treatment recommendations.",
-    duration: 30,
-    status: "Active",
-    icon: "Ear",
-  },
-];
 
 const categories = [
   "Cardiology",
@@ -175,7 +95,9 @@ const iconOptions = [
 ];
 
 export default function ServicesPage() {
-  const [services, setServices] = useState<Service[]>(initialServices);
+  const [services, setServices] = useState<Service[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
@@ -186,9 +108,44 @@ export default function ServicesPage() {
     category: "",
     description: "",
     duration: "",
+    price: "",
     status: "Active" as Service["status"],
     icon: "Stethoscope",
   });
+
+  // Get hospitalId from localStorage
+  const getHospitalId = () => {
+    if (typeof window !== 'undefined') {
+      const userInfo = localStorage.getItem('userInfo');
+      if (userInfo) {
+        const parsed = JSON.parse(userInfo);
+        return parsed.hospitalId;
+      }
+    }
+    return null;
+  };
+
+  // Fetch services on mount
+  useEffect(() => {
+    const fetchServices = async () => {
+      const hospitalId = getHospitalId();
+      if (!hospitalId) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const response = await serviceAPI.getByHospital(hospitalId);
+        setServices(response.data as Service[]);
+      } catch (error) {
+        console.error('Error fetching services:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchServices();
+  }, []);
 
   const handleOpenDialog = (service?: Service) => {
     if (service) {
@@ -198,6 +155,7 @@ export default function ServicesPage() {
         category: service.category,
         description: service.description,
         duration: service.duration.toString(),
+        price: service.price?.toString() || "0",
         status: service.status,
         icon: service.icon,
       });
@@ -208,6 +166,7 @@ export default function ServicesPage() {
         category: "",
         description: "",
         duration: "",
+        price: "",
         status: "Active",
         icon: "Stethoscope",
       });
@@ -215,35 +174,55 @@ export default function ServicesPage() {
     setIsDialogOpen(true);
   };
 
-  const handleSubmit = () => {
-    if (editingService) {
-      setServices(
-        services.map((s) =>
-          s.id === editingService.id
-            ? {
-                ...s,
-                ...formData,
-                duration: parseInt(formData.duration),
-              }
-            : s,
-        ),
-      );
-    } else {
-      const newService: Service = {
-        id: Date.now().toString(),
-        ...formData,
-        duration: parseInt(formData.duration),
+  const handleSubmit = async () => {
+    const hospitalId = getHospitalId();
+    if (!hospitalId) return;
+
+    setIsSaving(true);
+    try {
+      const serviceData = {
+        name: formData.name,
+        category: formData.category,
+        description: formData.description,
+        duration: parseInt(formData.duration) || 30,
+        price: parseFloat(formData.price) || 0,
+        status: formData.status,
+        icon: formData.icon,
+        hospitalId,
       };
-      setServices([...services, newService]);
+
+      if (editingService) {
+        const response = await serviceAPI.update(editingService._id, serviceData);
+        setServices(
+          services.map((s) =>
+            s._id === editingService._id ? (response.data as Service) : s
+          )
+        );
+      } else {
+        const response = await serviceAPI.create(serviceData);
+        setServices([...services, response.data as Service]);
+      }
+      setIsDialogOpen(false);
+    } catch (error) {
+      console.error('Error saving service:', error);
+    } finally {
+      setIsSaving(false);
     }
-    setIsDialogOpen(false);
   };
 
-  const handleDelete = () => {
-    if (deletingService) {
-      setServices(services.filter((s) => s.id !== deletingService.id));
+  const handleDelete = async () => {
+    if (!deletingService) return;
+
+    setIsSaving(true);
+    try {
+      await serviceAPI.delete(deletingService._id);
+      setServices(services.filter((s) => s._id !== deletingService._id));
       setIsDeleteDialogOpen(false);
       setDeletingService(null);
+    } catch (error) {
+      console.error('Error deleting service:', error);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -350,12 +329,18 @@ export default function ServicesPage() {
         </Button>
       </div>
 
-      <DataTable
-        columns={columns}
-        data={services}
-        searchKey="name"
-        searchPlaceholder="Search services..."
-      />
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={services}
+          searchKey="name"
+          searchPlaceholder="Search services..."
+        />
+      )}
 
       {/* Add/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -456,29 +441,42 @@ export default function ServicesPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="status">Status</Label>
-                <Select
-                  value={formData.status}
-                  onValueChange={(value: Service["status"]) =>
-                    setFormData({ ...formData, status: value })
+                <Label htmlFor="price">Price</Label>
+                <Input
+                  id="price"
+                  type="number"
+                  placeholder="0"
+                  value={formData.price}
+                  onChange={(e) =>
+                    setFormData({ ...formData, price: e.target.value })
                   }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Active">Active</SelectItem>
-                    <SelectItem value="Inactive">Inactive</SelectItem>
-                  </SelectContent>
-                </Select>
+                />
               </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="status">Status</Label>
+              <Select
+                value={formData.status}
+                onValueChange={(value: Service["status"]) =>
+                  setFormData({ ...formData, status: value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Active">Active</SelectItem>
+                  <SelectItem value="Inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSaving}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit}>
+            <Button onClick={handleSubmit} disabled={isSaving}>
+              {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               {editingService ? "Save Changes" : "Add Service"}
             </Button>
           </DialogFooter>
@@ -499,10 +497,12 @@ export default function ServicesPage() {
             <Button
               variant="outline"
               onClick={() => setIsDeleteDialogOpen(false)}
+              disabled={isSaving}
             >
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDelete}>
+            <Button variant="destructive" onClick={handleDelete} disabled={isSaving}>
+              {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Delete
             </Button>
           </DialogFooter>

@@ -10,6 +10,137 @@ const createTransporter = () => {
   });
 };
 
+// Send confirmation email to PATIENT when appointment is confirmed
+export const sendAppointmentConfirmationToPatient = async (emailData) => {
+  try {
+    const {
+      patientEmail,
+      patientName,
+      doctorName,
+      doctorSpecialty,
+      appointmentDate,
+      duration,
+      hospitalName,
+      hospitalAddress,
+      hospitalPhone,
+    } = emailData;
+
+    const transporter = createTransporter();
+
+    const formattedDate = new Date(appointmentDate).toLocaleString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    const htmlTemplate = `
+      <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+        <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 40px 20px; text-align: center; border-radius: 8px 8px 0 0;">
+          <table width="80" height="80" cellpadding="0" cellspacing="0" border="0" style="margin: 0 auto 15px; background-color: rgba(255,255,255,0.2); border-radius: 50%;">
+            <tr>
+              <td align="center" valign="middle" style="font-size: 40px; color: white; line-height: 80px;">✓</td>
+            </tr>
+          </table>
+          <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 600;">Appointment Confirmed!</h1>
+          <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.9); font-size: 16px;">Your appointment has been successfully confirmed</p>
+        </div>
+        
+        <div style="padding: 40px 30px; background-color: #ffffff; border: 1px solid #e5e7eb; border-top: none;">
+          <p style="font-size: 18px; color: #374151; margin: 0 0 25px 0;">Dear <strong>${patientName}</strong>,</p>
+          
+          <p style="color: #6b7280; line-height: 1.7; margin: 0 0 30px 0;">
+            Great news! Your appointment request has been confirmed by <strong>${hospitalName}</strong>. 
+            Please find your appointment details below.
+          </p>
+          
+          <div style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-radius: 12px; padding: 25px; margin: 0 0 30px 0;">
+            <h3 style="margin: 0 0 20px 0; color: #166534; font-size: 16px; text-transform: uppercase; letter-spacing: 1px;">📋 Appointment Details</h3>
+            
+            <table style="width: 100%; color: #374151; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 12px 0; border-bottom: 1px solid rgba(22, 101, 52, 0.1); font-weight: 600; width: 140px; color: #166534;">Date & Time</td>
+                <td style="padding: 12px 0; border-bottom: 1px solid rgba(22, 101, 52, 0.1); font-size: 15px;">${formattedDate}</td>
+              </tr>
+              <tr>
+                <td style="padding: 12px 0; border-bottom: 1px solid rgba(22, 101, 52, 0.1); font-weight: 600; color: #166534;">Duration</td>
+                <td style="padding: 12px 0; border-bottom: 1px solid rgba(22, 101, 52, 0.1);">${duration} minutes</td>
+              </tr>
+              <tr>
+                <td style="padding: 12px 0; border-bottom: 1px solid rgba(22, 101, 52, 0.1); font-weight: 600; color: #166534;">Doctor</td>
+                <td style="padding: 12px 0; border-bottom: 1px solid rgba(22, 101, 52, 0.1);">
+                  <strong>Dr. ${doctorName}</strong><br/>
+                  <span style="color: #6b7280; font-size: 14px;">${doctorSpecialty || 'General Practitioner'}</span>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: 12px 0; font-weight: 600; color: #166534;">Hospital</td>
+                <td style="padding: 12px 0;">
+                  <strong>${hospitalName}</strong><br/>
+                  ${hospitalAddress ? `<span style="color: #6b7280; font-size: 14px;">${hospitalAddress}</span><br/>` : ''}
+                  ${hospitalPhone ? `<span style="color: #6b7280; font-size: 14px;">📞 ${hospitalPhone}</span>` : ''}
+                </td>
+              </tr>
+            </table>
+          </div>
+          
+          <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 20px; margin: 0 0 30px 0; border-radius: 0 8px 8px 0;">
+            <h4 style="margin: 0 0 10px 0; color: #92400e; font-size: 14px;">⚠️ Important Reminders</h4>
+            <ul style="margin: 0; padding: 0 0 0 20px; color: #92400e; line-height: 1.8; font-size: 14px;">
+              <li>Please arrive 15 minutes before your appointment time</li>
+              <li>Bring any relevant medical records or test results</li>
+              <li>Carry a valid ID proof</li>
+              <li>Contact the hospital if you need to reschedule</li>
+            </ul>
+          </div>
+          
+          <p style="color: #6b7280; margin: 0 0 20px 0; line-height: 1.7;">
+            If you have any questions or need to reschedule, please contact the hospital directly.
+          </p>
+          
+          <p style="color: #374151; margin: 0;">
+            Best regards,<br/>
+            <strong>${hospitalName}</strong>
+          </p>
+        </div>
+        
+        <div style="background-color: #f9fafb; padding: 25px 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px; text-align: center;">
+          <p style="color: #9ca3af; font-size: 12px; margin: 0 0 5px 0;">
+            This is an automated email from the Hospital Management System.
+          </p>
+          <p style="color: #9ca3af; font-size: 12px; margin: 0;">
+            © ${new Date().getFullYear()} Hospital Management Tenant. All rights reserved.
+          </p>
+        </div>
+      </div>
+    `;
+
+    const mailOptions = {
+      from: process.env.GMAIL_USER,
+      to: patientEmail,
+      subject: `✅ Appointment Confirmed - ${hospitalName}`,
+      html: htmlTemplate,
+    };
+
+    const result = await transporter.sendMail(mailOptions);
+
+    return {
+      success: true,
+      messageId: result.messageId,
+      message: 'Patient confirmation email sent successfully',
+    };
+  } catch (error) {
+    console.error('Error sending patient confirmation email:', error);
+    return {
+      success: false,
+      error: error.message,
+      message: 'Failed to send patient confirmation email',
+    };
+  }
+};
+
 export const sendAppointmentConfirmationToDoctor = async (emailData) => {
   try {
     const {

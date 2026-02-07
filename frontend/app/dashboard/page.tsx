@@ -1,502 +1,350 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Chart } from "@/components/ui/chart";
 import {
   Stethoscope,
   Calendar,
   Users,
   Clock,
   TrendingUp,
-  TrendingDown,
-  ArrowRight,
+  AlertCircle,
+  Loader2,
+  CheckCircle,
+  XCircle,
+  FileText,
+  Activity,
 } from "lucide-react";
 import Link from "next/link";
-
-const stats = [
-  {
-    title: "Total Doctors",
-    value: "24",
-    change: "+2",
-    trend: "up",
-    icon: Stethoscope,
-    color: "bg-blue-500",
-  },
-  {
-    title: "Today's Appointments",
-    value: "18",
-    change: "+5",
-    trend: "up",
-    icon: Calendar,
-    color: "bg-green-500",
-  },
-  {
-    title: "Total Patients",
-    value: "1,248",
-    change: "+48",
-    trend: "up",
-    icon: Users,
-    color: "bg-purple-500",
-  },
-  {
-    title: "Avg. Wait Time",
-    value: "12 min",
-    change: "-3",
-    trend: "down",
-    icon: Clock,
-    color: "bg-orange-500",
-  },
-];
-
-const recentAppointments = [
-  {
-    id: 1,
-    patient: "John Smith",
-    patientImage:
-      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face",
-    doctor: "Dr. Sarah Wilson",
-    time: "09:00 AM",
-    status: "Confirmed",
-  },
-  {
-    id: 2,
-    patient: "Emily Johnson",
-    patientImage:
-      "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=face",
-    doctor: "Dr. Michael Chen",
-    time: "10:30 AM",
-    status: "Pending",
-  },
-  {
-    id: 3,
-    patient: "Robert Davis",
-    patientImage:
-      "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop&crop=face",
-    doctor: "Dr. Sarah Wilson",
-    time: "11:00 AM",
-    status: "Confirmed",
-  },
-  {
-    id: 4,
-    patient: "Maria Garcia",
-    patientImage:
-      "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop&crop=face",
-    doctor: "Dr. James Brown",
-    time: "02:00 PM",
-    status: "In Progress",
-  },
-  {
-    id: 5,
-    patient: "David Miller",
-    patientImage:
-      "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face",
-    doctor: "Dr. Lisa Anderson",
-    time: "03:30 PM",
-    status: "Pending",
-  },
-];
-
-const topDoctors = [
-  {
-    name: "Dr. Sarah Wilson",
-    specialty: "Cardiology",
-    patients: 156,
-    image:
-      "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=100&h=100&fit=crop&crop=face",
-  },
-  {
-    name: "Dr. Michael Chen",
-    specialty: "Neurology",
-    patients: 142,
-    image:
-      "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=100&h=100&fit=crop&crop=face",
-  },
-  {
-    name: "Dr. James Brown",
-    specialty: "Orthopedics",
-    patients: 128,
-    image:
-      "https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=100&h=100&fit=crop&crop=face",
-  },
-  {
-    name: "Dr. Lisa Anderson",
-    specialty: "Pediatrics",
-    patients: 115,
-    image:
-      "https://images.unsplash.com/photo-1594824476967-48c8b964273f?w=100&h=100&fit=crop&crop=face",
-  },
-];
-
-// Chart configurations
-const patientsChartOptions = {
-  chart: {
-    id: "patients-chart",
-    toolbar: { show: false },
-    sparkline: { enabled: false },
-    fontFamily: "inherit",
-  },
-  colors: ["#0573EC", "#10b981"],
-  stroke: {
-    curve: "smooth" as const,
-    width: 3,
-  },
-  fill: {
-    type: "gradient",
-    gradient: {
-      shadeIntensity: 1,
-      opacityFrom: 0.4,
-      opacityTo: 0.1,
-      stops: [0, 90, 100],
-    },
-  },
-  xaxis: {
-    categories: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-    labels: {
-      style: { colors: "#64748b", fontSize: "12px" },
-    },
-    axisBorder: { show: false },
-    axisTicks: { show: false },
-  },
-  yaxis: {
-    labels: {
-      style: { colors: "#64748b", fontSize: "12px" },
-    },
-  },
-  grid: {
-    borderColor: "#e2e8f0",
-    strokeDashArray: 4,
-  },
-  legend: {
-    position: "top" as const,
-    horizontalAlign: "right" as const,
-  },
-  tooltip: {
-    theme: "light",
-  },
-};
-
-const patientsSeries = [
-  {
-    name: "New Patients",
-    data: [28, 35, 42, 38, 45, 32, 40],
-  },
-  {
-    name: "Returning Patients",
-    data: [45, 52, 48, 55, 62, 48, 58],
-  },
-];
-
-const appointmentsChartOptions = {
-  chart: {
-    id: "appointments-chart",
-    toolbar: { show: false },
-    fontFamily: "inherit",
-  },
-  colors: ["#0573EC", "#f59e0b", "#10b981", "#ef4444"],
-  plotOptions: {
-    bar: {
-      borderRadius: 6,
-      columnWidth: "60%",
-      distributed: true,
-    },
-  },
-  dataLabels: { enabled: false },
-  xaxis: {
-    categories: ["Pending", "Confirmed", "Completed", "Cancelled"],
-    labels: {
-      style: { colors: "#64748b", fontSize: "12px" },
-    },
-    axisBorder: { show: false },
-    axisTicks: { show: false },
-  },
-  yaxis: {
-    labels: {
-      style: { colors: "#64748b", fontSize: "12px" },
-    },
-  },
-  grid: {
-    borderColor: "#e2e8f0",
-    strokeDashArray: 4,
-  },
-  legend: { show: false },
-  tooltip: {
-    theme: "light",
-  },
-};
-
-const appointmentsSeries = [
-  {
-    name: "Appointments",
-    data: [12, 25, 48, 5],
-  },
-];
-
-const departmentChartOptions = {
-  chart: {
-    id: "department-chart",
-    fontFamily: "inherit",
-  },
-  colors: ["#0573EC", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444"],
-  labels: ["Cardiology", "Neurology", "Orthopedics", "Pediatrics", "Other"],
-  legend: {
-    position: "bottom" as const,
-    fontSize: "13px",
-  },
-  dataLabels: {
-    enabled: true,
-    formatter: (val: number) => `${val.toFixed(0)}%`,
-  },
-  plotOptions: {
-    pie: {
-      donut: {
-        size: "60%",
-        labels: {
-          show: true,
-          total: {
-            show: true,
-            label: "Total",
-            fontSize: "16px",
-            fontWeight: 600,
-          },
-        },
-      },
-    },
-  },
-  tooltip: {
-    theme: "light",
-  },
-};
-
-const departmentSeries = [28, 22, 18, 17, 15];
+import { dashboardAPI, appointmentAPI, doctorAPI } from "@/lib/api";
 
 export default function DashboardPage() {
-  const getStatusBadge = (status: string) => {
-    const variants: Record<
-      string,
-      "default" | "secondary" | "outline" | "destructive"
-    > = {
-      Confirmed: "default",
-      Pending: "secondary",
-      "In Progress": "outline",
-      Cancelled: "destructive",
-    };
-    return (
-      <Badge variant={variants[status] || "secondary"} className="text-xs">
-        {status}
-      </Badge>
-    );
+  const [stats, setStats] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [recentAppointments, setRecentAppointments] = useState<any[]>([]);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (isMounted) {
+      fetchDashboardData();
+    }
+  }, [isMounted]);
+
+  const fetchDashboardData = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      // Get user info from localStorage (only on client)
+      if (typeof window === "undefined") {
+        setError("Not running in browser context");
+        return;
+      }
+
+      const userStr = localStorage.getItem("userInfo");
+      if (!userStr) {
+        setError("User information not found. Please log in again.");
+        setIsLoading(false);
+        return;
+      }
+
+      let user;
+      try {
+        user = JSON.parse(userStr);
+      } catch (parseErr) {
+        setError("Invalid user information format");
+        setIsLoading(false);
+        return;
+      }
+
+      const hospitalId = user?.hospitalId || user?._id;
+
+      if (!hospitalId) {
+        setError("Hospital ID not found. Please log in again.");
+        setIsLoading(false);
+        return;
+      }
+
+      // Fetch dashboard statistics
+      const response = await dashboardAPI.getStats(hospitalId);
+      if (response.data) {
+        setStats(response.data);
+        setRecentAppointments(response.data.recentAppointments || []);
+      }
+    } catch (err: any) {
+      console.error("Error fetching dashboard data:", err);
+      setError(err.message || "Failed to load dashboard data");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-muted-foreground">
-            Welcome back! Here&apos;s what&apos;s happening at City General
-            Hospital today.
-          </p>
+  const StatCard = ({
+    title,
+    value,
+    icon: Icon,
+    color,
+    trend,
+  }: {
+    title: string;
+    value: number | string;
+    icon: any;
+    color: string;
+    trend?: { value: number; direction: "up" | "down" };
+  }) => (
+    <Card>
+      <CardContent className="pt-6">
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-sm text-muted-foreground mb-1">{title}</p>
+            <p className="text-3xl font-bold">{value}</p>
+            {trend && (
+              <p
+                className={`text-xs mt-2 ${
+                  trend.direction === "up" ? "text-green-600" : "text-red-600"
+                }`}
+              >
+                {trend.direction === "up" ? "↑" : "↓"} {Math.abs(trend.value)}%
+              </p>
+            )}
+          </div>
+          <div className={`${color} p-3 rounded-lg`}>
+            <Icon className="h-6 w-6 text-white" />
+          </div>
         </div>
-        <Button asChild>
-          <Link href="/dashboard/appointments">
-            <Calendar className="w-4 h-4 mr-2" />
-            New Appointment
-          </Link>
-        </Button>
+      </CardContent>
+    </Card>
+  );
+
+  const getAppointmentStatusColor = (status: string) => {
+    const colors: Record<string, string> = {
+      pending: "bg-yellow-100 text-yellow-800",
+      confirmed: "bg-blue-100 text-blue-800",
+      completed: "bg-green-100 text-green-800",
+      cancelled: "bg-red-100 text-red-800",
+    };
+    return colors[status] || "bg-gray-100 text-gray-800";
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="bg-destructive/10 border-destructive">
+        <CardContent className="flex items-center gap-4 pt-6">
+          <AlertCircle className="h-6 w-6 text-destructive flex-shrink-0" />
+          <div className="flex-1">
+            <p className="font-semibold text-destructive">Error Loading Dashboard</p>
+            <p className="text-sm text-destructive/80">{error}</p>
+          </div>
+          <Button onClick={fetchDashboardData} variant="outline" size="sm">
+            Retry
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      {/* Welcome Section */}
+      <div>
+        <h1 className="text-3xl font-bold mb-2">
+          Welcome, {stats?.hospitalInfo?.name}
+        </h1>
+        <p className="text-muted-foreground">
+          Here's what's happening at your hospital today.
+        </p>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat) => (
-          <Card key={stat.title} className="relative overflow-hidden">
-            <CardContent className="p-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">
-                    {stat.title}
-                  </p>
-                  <p className="text-3xl font-bold mt-2">{stat.value}</p>
-                  <div className="flex items-center gap-1 mt-2">
-                    {stat.trend === "up" ? (
-                      <TrendingUp className="w-4 h-4 text-green-500" />
-                    ) : (
-                      <TrendingDown className="w-4 h-4 text-green-500" />
-                    )}
-                    <span className="text-sm text-green-500 font-medium">
-                      {stat.change}
-                    </span>
-                    <span className="text-sm text-muted-foreground">
-                      vs last week
-                    </span>
-                  </div>
-                </div>
-                <div className={`p-3 rounded-xl ${stat.color}`}>
-                  <stat.icon className="w-6 h-6 text-white" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+      {/* Stats Cards Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          title="Total Doctors"
+          value={stats?.statistics?.doctors?.total || 0}
+          icon={Stethoscope}
+          color="bg-blue-500"
+          trend={
+            stats?.statistics?.doctors?.growth !== undefined
+              ? {
+                  value: Math.abs(stats.statistics.doctors.growth),
+                  direction: stats.statistics.doctors.growth >= 0 ? "up" : "down",
+                }
+              : undefined
+          }
+        />
+        <StatCard
+          title="Today's Appointments"
+          value={stats?.statistics?.appointments?.today || 0}
+          icon={Calendar}
+          color="bg-green-500"
+        />
+        <StatCard
+          title="Total Patients"
+          value={stats?.statistics?.patients?.total || 0}
+          icon={Users}
+          color="bg-purple-500"
+        />
+        <StatCard
+          title="Pending Appointments"
+          value={stats?.statistics?.appointments?.pending || 0}
+          icon={Clock}
+          color="bg-orange-500"
+        />
       </div>
 
-      {/* Charts Row */}
+      {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Patients Trend Chart */}
+        {/* Appointment Statistics */}
         <Card className="lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Patient Visits This Week</CardTitle>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="h-5 w-5" />
+              Appointment Overview
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
-              <Chart
-                options={patientsChartOptions}
-                series={patientsSeries}
-                type="area"
-                height="100%"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 bg-blue-50 rounded-lg">
+                <p className="text-sm text-muted-foreground mb-1">Total</p>
+                <p className="text-2xl font-bold">
+                  {stats?.statistics?.appointments?.total || 0}
+                </p>
+              </div>
+              <div className="p-4 bg-green-50 rounded-lg">
+                <p className="text-sm text-muted-foreground mb-1">Completed</p>
+                <p className="text-2xl font-bold text-green-600">
+                  {stats?.statistics?.appointments?.completed || 0}
+                </p>
+              </div>
+              <div className="p-4 bg-yellow-50 rounded-lg">
+                <p className="text-sm text-muted-foreground mb-1">Pending</p>
+                <p className="text-2xl font-bold text-yellow-600">
+                  {stats?.statistics?.appointments?.pending || 0}
+                </p>
+              </div>
+              <div className="p-4 bg-red-50 rounded-lg">
+                <p className="text-sm text-muted-foreground mb-1">Cancelled</p>
+                <p className="text-2xl font-bold text-red-600">
+                  {stats?.statistics?.appointments?.cancelled || 0}
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Department Distribution */}
+        {/* Quick Info */}
         <Card>
           <CardHeader>
-            <CardTitle>Department Distribution</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Quick Info
+            </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              <Chart
-                options={departmentChartOptions}
-                series={departmentSeries}
-                type="donut"
-                height="100%"
-              />
+          <CardContent className="space-y-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Active Doctors</p>
+              <p className="text-2xl font-bold">
+                {stats?.statistics?.doctors?.active || 0}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">This Week</p>
+              <p className="text-2xl font-bold">
+                {stats?.statistics?.appointments?.thisWeek || 0}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Appointments scheduled
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Avg. Duration</p>
+              <p className="text-2xl font-bold">
+                {stats?.statistics?.avgAppointmentDuration || 30}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">minutes</p>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Appointments Status Chart */}
+      {/* Recent Appointments */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Appointments Overview</CardTitle>
+        <CardHeader className="flex items-center justify-between">
+          <CardTitle>Recent Appointments</CardTitle>
           <Button variant="outline" size="sm" asChild>
-            <Link href="/dashboard/appointments">
-              View All <ArrowRight className="w-4 h-4 ml-1" />
-            </Link>
+            <Link href="/dashboard/appointments">View All</Link>
           </Button>
         </CardHeader>
         <CardContent>
-          <div className="h-[250px]">
-            <Chart
-              options={appointmentsChartOptions}
-              series={appointmentsSeries}
-              type="bar"
-              height="100%"
-            />
-          </div>
+          {recentAppointments.length > 0 ? (
+            <div className="space-y-4">
+              {recentAppointments.map((apt) => (
+                <div
+                  key={apt._id}
+                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent transition"
+                >
+                  <div className="flex-1">
+                    <p className="font-medium">{apt.patientName}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Dr. {apt.doctorName} • {apt.doctorSpecialty}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {new Date(apt.appointmentDate).toLocaleString()}
+                    </p>
+                  </div>
+                  <Badge className={getAppointmentStatusColor(apt.status)}>
+                    {apt.status.charAt(0).toUpperCase() + apt.status.slice(1)}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-2 opacity-50" />
+              <p className="text-muted-foreground">No recent appointments</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Recent Appointments & Top Doctors */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Appointments */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Recent Appointments</CardTitle>
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/dashboard/appointments">
-                View All <ArrowRight className="w-4 h-4 ml-1" />
-              </Link>
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {recentAppointments.map((appointment) => (
-                <div
-                  key={appointment.id}
-                  className="flex items-center justify-between py-3 border-b border-border last:border-0"
-                >
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-10 w-10">
-                      <AvatarImage src={appointment.patientImage} />
-                      <AvatarFallback>
-                        {appointment.patient
-                          .split(" ")
-                          .map((n) => n[0])
-                          .join("")}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium">{appointment.patient}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {appointment.doctor}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right flex items-center gap-3">
-                    <div>
-                      <p className="text-sm font-medium">{appointment.time}</p>
-                      <p className="text-xs text-muted-foreground">Today</p>
-                    </div>
-                    {getStatusBadge(appointment.status)}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Top Doctors */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Top Doctors</CardTitle>
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/dashboard/doctors">
-                View All <ArrowRight className="w-4 h-4 ml-1" />
-              </Link>
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {topDoctors.map((doctor, index) => (
-                <div
-                  key={doctor.name}
-                  className="flex items-center justify-between py-3 border-b border-border last:border-0"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <Avatar className="h-10 w-10">
-                        <AvatarImage src={doctor.image} />
-                        <AvatarFallback>
-                          {doctor.name
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="absolute -top-1 -left-1 w-5 h-5 bg-primary text-white text-xs rounded-full flex items-center justify-center font-medium">
-                        {index + 1}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="font-medium">{doctor.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {doctor.specialty}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-lg font-semibold">{doctor.patients}</p>
-                    <p className="text-xs text-muted-foreground">patients</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+      {/* Quick Actions */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Button asChild size="lg" variant="outline" className="h-20">
+          <Link href="/dashboard/doctors" className="flex flex-col items-center justify-center gap-2">
+            <Stethoscope className="h-6 w-6" />
+            <span>Manage Doctors</span>
+          </Link>
+        </Button>
+        <Button asChild size="lg" variant="outline" className="h-20">
+          <Link href="/dashboard/appointments" className="flex flex-col items-center justify-center gap-2">
+            <Calendar className="h-6 w-6" />
+            <span>View Appointments</span>
+          </Link>
+        </Button>
+        <Button asChild size="lg" variant="outline" className="h-20">
+          <Link href="/dashboard/patients" className="flex flex-col items-center justify-center gap-2">
+            <Users className="h-6 w-6" />
+            <span>Manage Patients</span>
+          </Link>
+        </Button>
       </div>
     </div>
   );

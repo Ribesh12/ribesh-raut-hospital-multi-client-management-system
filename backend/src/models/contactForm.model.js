@@ -14,6 +14,10 @@ const contactFormSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    subject: {
+      type: String,
+      default: 'General Inquiry',
+    },
     message: {
       type: String,
       required: true,
@@ -25,8 +29,12 @@ const contactFormSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['new', 'read', 'responded'],
-      default: 'new',
+      enum: ['unread', 'read', 'starred', 'responded'],
+      default: 'unread',
+    },
+    isStarred: {
+      type: Boolean,
+      default: false,
     },
   },
   { timestamps: true }

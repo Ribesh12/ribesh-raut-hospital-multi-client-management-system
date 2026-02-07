@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/ui/data-table";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -39,96 +40,35 @@ import {
   Mail,
   Phone,
   Calendar,
+  AlertCircle,
+  Loader2,
+  Upload,
+  Camera,
 } from "lucide-react";
+import { doctorAPI, tokenManager } from "@/lib/api";
+import { validateEmail, validatePhone } from "@/lib/validation";
+import { Card, CardContent } from "@/components/ui/card";
 
 type Doctor = {
-  id: string;
+  _id?: string;
+  id?: string;
   name: string;
   specialty: string;
   email: string;
   phone: string;
   experience: number;
   status: "Active" | "On Leave" | "Inactive";
-  image: string;
-  joinDate: string;
+  photo?: string;
+  qualifications?: string;
+  bio?: string;
+  consultationFee?: number;
+  workingDays?: string[];
+  workingHours?: { start: string; end: string };
+  joinDate?: string;
+  createdAt?: string;
 };
 
-const initialDoctors: Doctor[] = [
-  {
-    id: "1",
-    name: "Dr. Sarah Wilson",
-    specialty: "Cardiology",
-    email: "sarah.wilson@hospital.com",
-    phone: "+1 555-0101",
-    experience: 12,
-    status: "Active",
-    image:
-      "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=100&h=100&fit=crop&crop=face",
-    joinDate: "2020-01-15",
-  },
-  {
-    id: "2",
-    name: "Dr. Michael Chen",
-    specialty: "Neurology",
-    email: "michael.chen@hospital.com",
-    phone: "+1 555-0102",
-    experience: 15,
-    status: "Active",
-    image:
-      "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=100&h=100&fit=crop&crop=face",
-    joinDate: "2019-03-22",
-  },
-  {
-    id: "3",
-    name: "Dr. James Brown",
-    specialty: "Orthopedics",
-    email: "james.brown@hospital.com",
-    phone: "+1 555-0103",
-    experience: 10,
-    status: "On Leave",
-    image:
-      "https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=100&h=100&fit=crop&crop=face",
-    joinDate: "2021-06-10",
-  },
-  {
-    id: "4",
-    name: "Dr. Lisa Anderson",
-    specialty: "Pediatrics",
-    email: "lisa.anderson@hospital.com",
-    phone: "+1 555-0104",
-    experience: 8,
-    status: "Active",
-    image:
-      "https://images.unsplash.com/photo-1594824476967-48c8b964273f?w=100&h=100&fit=crop&crop=face",
-    joinDate: "2022-02-28",
-  },
-  {
-    id: "5",
-    name: "Dr. Robert Martinez",
-    specialty: "Dermatology",
-    email: "robert.martinez@hospital.com",
-    phone: "+1 555-0105",
-    experience: 6,
-    status: "Active",
-    image:
-      "https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=100&h=100&fit=crop&crop=face",
-    joinDate: "2023-01-05",
-  },
-  {
-    id: "6",
-    name: "Dr. Jennifer Taylor",
-    specialty: "Psychiatry",
-    email: "jennifer.taylor@hospital.com",
-    phone: "+1 555-0106",
-    experience: 9,
-    status: "Inactive",
-    image:
-      "https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=100&h=100&fit=crop&crop=face",
-    joinDate: "2020-09-14",
-  },
-];
-
-const specialties = [
+const defaultSpecialties = [
   "Cardiology",
   "Neurology",
   "Orthopedics",
@@ -142,11 +82,22 @@ const specialties = [
 ];
 
 export default function DoctorsPage() {
-  const [doctors, setDoctors] = useState<Doctor[]>(initialDoctors);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [specialties, setSpecialties] = useState<string[]>(defaultSpecialties);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [editingDoctor, setEditingDoctor] = useState<Doctor | null>(null);
   const [deletingDoctor, setDeletingDoctor] = useState<Doctor | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isMutating, setIsMutating] = useState(false);
+  const [mutationError, setMutationError] = useState<string | null>(null);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [selectedPhoto, setSelectedPhoto] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [customSpecialty, setCustomSpecialty] = useState("");
 
   const [formData, setFormData] = useState({
     name: "",
@@ -155,9 +106,114 @@ export default function DoctorsPage() {
     phone: "",
     experience: "",
     status: "Active" as Doctor["status"],
+    qualifications: "",
+    bio: "",
+    consultationFee: "",
   });
 
+  // Get hospitalId from localStorage
+  const getHospitalId = () => {
+    if (typeof window !== 'undefined') {
+      const userInfo = localStorage.getItem('userInfo');
+      if (userInfo) {
+        const parsed = JSON.parse(userInfo);
+        return parsed.hospitalId || parsed._id;
+      }
+    }
+    return null;
+  };
+
+  // Fetch doctors and specialties on component mount
+  useEffect(() => {
+    const fetchData = async () => {
+      const hospitalId = getHospitalId();
+      if (!hospitalId) {
+        setError("Hospital ID not found. Please log in again.");
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        // Fetch doctors and specialties in parallel
+        const [doctorsResponse, specialtiesResponse] = await Promise.all([
+          doctorAPI.getByHospital(hospitalId),
+          doctorAPI.getSpecialties(hospitalId).catch(() => ({ data: [] })),
+        ]);
+
+        setDoctors(doctorsResponse.data || []);
+        
+        // Merge API specialties with default specialties (unique values)
+        const apiSpecialties = (specialtiesResponse.data as string[]) || [];
+        const mergedSpecialties = [...new Set([...defaultSpecialties, ...apiSpecialties])].sort();
+        setSpecialties(mergedSpecialties);
+      } catch (err: any) {
+        console.error("Error fetching data:", err);
+        setError(err.message || "Failed to load doctors. Please try again later.");
+        setDoctors([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  const refreshSpecialties = async () => {
+    const hospitalId = getHospitalId();
+    if (!hospitalId) return;
+
+    try {
+      const response = await doctorAPI.getSpecialties(hospitalId);
+      const apiSpecialties = (response.data as string[]) || [];
+      const mergedSpecialties = [...new Set([...defaultSpecialties, ...apiSpecialties])].sort();
+      setSpecialties(mergedSpecialties);
+    } catch (err) {
+      console.error("Error refreshing specialties:", err);
+    }
+  };
+
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {};
+
+    if (!formData.name.trim()) {
+      errors.name = "Name is required";
+    }
+
+    if (!formData.specialty.trim()) {
+      errors.specialty = "Specialty is required";
+    }
+
+    if (!formData.email.trim()) {
+      errors.email = "Email is required";
+    } else if (!validateEmail(formData.email)) {
+      errors.email = "Invalid email format";
+    }
+
+    if (!formData.phone.trim()) {
+      errors.phone = "Phone is required";
+    } else if (!validatePhone(formData.phone)) {
+      errors.phone = "Invalid phone format";
+    }
+
+    if (!formData.experience) {
+      errors.experience = "Experience is required";
+    } else if (parseInt(formData.experience) < 0) {
+      errors.experience = "Experience must be non-negative";
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleOpenDialog = (doctor?: Doctor) => {
+    setMutationError(null);
+    setFormErrors({});
+    setSelectedPhoto(null);
+    setPhotoPreview(null);
+
     if (doctor) {
       setEditingDoctor(doctor);
       setFormData({
@@ -166,8 +222,18 @@ export default function DoctorsPage() {
         email: doctor.email,
         phone: doctor.phone,
         experience: doctor.experience.toString(),
-        status: doctor.status,
+        status: doctor.status || "Active",
+        qualifications: doctor.qualifications || "",
+        bio: doctor.bio || "",
+        consultationFee: doctor.consultationFee?.toString() || "",
       });
+      // Set existing photo preview
+      if (doctor.photo) {
+        const photoUrl = doctor.photo.startsWith('http') 
+          ? doctor.photo 
+          : `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:3002'}${doctor.photo}`;
+        setPhotoPreview(photoUrl);
+      }
     } else {
       setEditingDoctor(null);
       setFormData({
@@ -177,42 +243,163 @@ export default function DoctorsPage() {
         phone: "",
         experience: "",
         status: "Active",
+        qualifications: "",
+        bio: "",
+        consultationFee: "",
       });
     }
     setIsDialogOpen(true);
   };
 
-  const handleSubmit = () => {
-    if (editingDoctor) {
-      setDoctors(
-        doctors.map((d) =>
-          d.id === editingDoctor.id
-            ? {
-                ...d,
-                ...formData,
-                experience: parseInt(formData.experience),
-              }
-            : d,
-        ),
-      );
-    } else {
-      const newDoctor: Doctor = {
-        id: Date.now().toString(),
-        ...formData,
-        experience: parseInt(formData.experience),
-        image: `https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=100&h=100&fit=crop&crop=face`,
-        joinDate: new Date().toISOString().split("T")[0],
+  const handlePhotoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setSelectedPhoto(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPhotoPreview(reader.result as string);
       };
-      setDoctors([...doctors, newDoctor]);
+      reader.readAsDataURL(file);
     }
-    setIsDialogOpen(false);
   };
 
-  const handleDelete = () => {
-    if (deletingDoctor) {
-      setDoctors(doctors.filter((d) => d.id !== deletingDoctor.id));
+  const handleSubmit = async () => {
+    if (!validateForm()) {
+      return;
+    }
+
+    try {
+      setIsMutating(true);
+      setMutationError(null);
+
+      const userStr = localStorage.getItem("userInfo");
+      const user = userStr ? JSON.parse(userStr) : null;
+      const hospitalId = user?.hospitalId || user?._id;
+
+      if (!hospitalId) {
+        setMutationError("Hospital ID not found. Please log in again.");
+        return;
+      }
+
+      const doctorData = {
+        name: formData.name,
+        specialty: formData.specialty,
+        email: formData.email,
+        phone: formData.phone,
+        experience: parseInt(formData.experience),
+        status: formData.status,
+        qualifications: formData.qualifications,
+        bio: formData.bio,
+        consultationFee: formData.consultationFee ? parseFloat(formData.consultationFee) : 0,
+      };
+
+      let savedDoctor: Doctor;
+
+      if (editingDoctor) {
+        // Update doctor
+        const docId = editingDoctor._id || editingDoctor.id;
+        const response = await doctorAPI.update(docId!, doctorData);
+        savedDoctor = response.data;
+
+        // Upload photo if selected
+        if (selectedPhoto && docId) {
+          setIsUploadingPhoto(true);
+          try {
+            const photoResponse = await doctorAPI.uploadPhoto(docId, selectedPhoto);
+            savedDoctor = photoResponse.data;
+          } catch (photoErr: any) {
+            console.error("Photo upload failed:", photoErr);
+            // Continue even if photo upload fails
+          }
+          setIsUploadingPhoto(false);
+        }
+
+        // Update local state
+        setDoctors(
+          doctors.map((d) => {
+            if ((d._id || d.id) === docId) {
+              return savedDoctor;
+            }
+            return d;
+          })
+        );
+      } else {
+        // Create doctor
+        const response = await doctorAPI.create({
+          ...doctorData,
+          hospitalId,
+        });
+        savedDoctor = response.data;
+
+        // Upload photo if selected
+        const newDocId = savedDoctor._id || savedDoctor.id;
+        if (selectedPhoto && newDocId) {
+          setIsUploadingPhoto(true);
+          try {
+            const photoResponse = await doctorAPI.uploadPhoto(newDocId, selectedPhoto);
+            savedDoctor = photoResponse.data;
+          } catch (photoErr: any) {
+            console.error("Photo upload failed:", photoErr);
+          }
+          setIsUploadingPhoto(false);
+        }
+
+        // Add to local state
+        setDoctors([...doctors, savedDoctor]);
+      }
+
+      setIsDialogOpen(false);
+      setFormData({
+        name: "",
+        specialty: "",
+        email: "",
+        phone: "",
+        experience: "",
+        status: "Active",
+        qualifications: "",
+        bio: "",
+        consultationFee: "",
+      });
+      setSelectedPhoto(null);
+      setPhotoPreview(null);
+      setEditingDoctor(null);
+      setCustomSpecialty("");
+      
+      // Refresh specialties list to include newly added specialty
+      refreshSpecialties();
+    } catch (err: any) {
+      console.error("Error saving doctor:", err);
+      setMutationError(
+        err.message || "Failed to save doctor. Please try again."
+      );
+    } finally {
+      setIsMutating(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deletingDoctor) return;
+
+    try {
+      setIsMutating(true);
+      setMutationError(null);
+
+      const docId = deletingDoctor._id || deletingDoctor.id;
+      await doctorAPI.delete(docId);
+
+      // Remove from local state
+      setDoctors(
+        doctors.filter((d) => (d._id || d.id) !== docId)
+      );
       setIsDeleteDialogOpen(false);
       setDeletingDoctor(null);
+    } catch (err: any) {
+      console.error("Error deleting doctor:", err);
+      setMutationError(
+        err.message || "Failed to delete doctor. Please try again."
+      );
+    } finally {
+      setIsMutating(false);
     }
   };
 
@@ -234,16 +421,18 @@ export default function DoctorsPage() {
       header: "Doctor",
       cell: ({ row }) => {
         const doctor = row.original;
+        const initials = doctor.name
+          .split(" ")
+          .map((n) => n[0])
+          .join("");
+        const photoUrl = doctor.photo 
+          ? (doctor.photo.startsWith('http') ? doctor.photo : `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:3002'}${doctor.photo}`)
+          : undefined;
         return (
           <div className="flex items-center gap-3">
             <Avatar className="h-10 w-10">
-              <AvatarImage src={doctor.image} />
-              <AvatarFallback>
-                {doctor.name
-                  .split(" ")
-                  .map((n) => n[0])
-                  .join("")}
-              </AvatarFallback>
+              <AvatarImage src={photoUrl} />
+              <AvatarFallback>{initials}</AvatarFallback>
             </Avatar>
             <div>
               <p className="font-medium">{doctor.name}</p>
@@ -286,16 +475,20 @@ export default function DoctorsPage() {
     {
       accessorKey: "joinDate",
       header: "Join Date",
-      cell: ({ row }) => (
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Calendar className="h-4 w-4" />
-          {new Date(row.original.joinDate).toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-          })}
-        </div>
-      ),
+      cell: ({ row }) => {
+        const joinDate = row.original.joinDate || row.original.createdAt;
+        if (!joinDate) return "-";
+        return (
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Calendar className="h-4 w-4" />
+            {new Date(joinDate).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            })}
+          </div>
+        );
+      },
     },
     {
       accessorKey: "status",
@@ -340,28 +533,61 @@ export default function DoctorsPage() {
 
   return (
     <div className="space-y-6">
+      {/* Error Alert */}
+      {error && (
+        <Card className="bg-destructive/10 border-destructive">
+          <CardContent className="flex items-center gap-3 pt-6">
+            <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm text-destructive font-medium">{error}</p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchDoctors}
+            >
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <p className="text-muted-foreground">
             Manage your hospital&apos;s medical staff
+            {!isLoading && doctors.length > 0 && (
+              <span className="ml-2 text-muted-foreground">
+                ({doctors.length} doctor{doctors.length !== 1 ? "s" : ""})
+              </span>
+            )}
           </p>
         </div>
-        <Button onClick={() => handleOpenDialog()}>
+        <Button onClick={() => handleOpenDialog()} disabled={isLoading}>
           <Plus className="h-4 w-4 mr-2" />
           Add Doctor
         </Button>
       </div>
 
-      <DataTable
-        columns={columns}
-        data={doctors}
-        searchKey="name"
-        searchPlaceholder="Search doctors..."
-      />
+      {isLoading ? (
+        <Card className="p-8">
+          <div className="flex items-center justify-center gap-2 text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>Loading doctors...</span>
+          </div>
+        </Card>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={doctors}
+          searchKey="name"
+          searchPlaceholder="Search doctors..."
+        />
+      )}
 
       {/* Add/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingDoctor ? "Edit Doctor" : "Add New Doctor"}
@@ -372,9 +598,19 @@ export default function DoctorsPage() {
                 : "Fill in the details to add a new doctor."}
             </DialogDescription>
           </DialogHeader>
+
+          {mutationError && (
+            <div className="flex items-center gap-2 bg-destructive/10 border border-destructive rounded p-3">
+              <AlertCircle className="h-4 w-4 text-destructive flex-shrink-0" />
+              <p className="text-sm text-destructive">{mutationError}</p>
+            </div>
+          )}
+
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="name">Full Name</Label>
+              <Label htmlFor="name">
+                Full Name {formErrors.name && <span className="text-destructive text-sm">*</span>}
+              </Label>
               <Input
                 id="name"
                 placeholder="Dr. John Doe"
@@ -382,31 +618,75 @@ export default function DoctorsPage() {
                 onChange={(e) =>
                   setFormData({ ...formData, name: e.target.value })
                 }
+                className={formErrors.name ? "border-destructive" : ""}
               />
+              {formErrors.name && (
+                <p className="text-xs text-destructive">{formErrors.name}</p>
+              )}
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="specialty">Specialty</Label>
-              <Select
-                value={formData.specialty}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, specialty: value })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select specialty" />
-                </SelectTrigger>
-                <SelectContent>
-                  {specialties.map((specialty) => (
-                    <SelectItem key={specialty} value={specialty}>
-                      {specialty}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="specialty">
+                Specialty {formErrors.specialty && <span className="text-destructive text-sm">*</span>}
+              </Label>
+              {customSpecialty !== null && customSpecialty !== undefined && customSpecialty !== "" ? (
+                <div className="space-y-2">
+                  <Input
+                    placeholder="Enter custom specialty"
+                    value={customSpecialty}
+                    onChange={(e) => {
+                      setCustomSpecialty(e.target.value);
+                      setFormData({ ...formData, specialty: e.target.value });
+                    }}
+                    className={formErrors.specialty ? "border-destructive" : ""}
+                    autoFocus
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setCustomSpecialty("");
+                      setFormData({ ...formData, specialty: "" });
+                    }}
+                  >
+                    ← Back to list
+                  </Button>
+                </div>
+              ) : (
+                <Select
+                  value={specialties.includes(formData.specialty) ? formData.specialty : ""}
+                  onValueChange={(value) => {
+                    if (value === "__custom__") {
+                      setCustomSpecialty(" ");
+                      setFormData({ ...formData, specialty: "" });
+                    } else {
+                      setFormData({ ...formData, specialty: value });
+                      setCustomSpecialty("");
+                    }
+                  }}
+                >
+                  <SelectTrigger className={formErrors.specialty ? "border-destructive" : ""}>
+                    <SelectValue placeholder="Select specialty" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {specialties.map((specialty) => (
+                      <SelectItem key={specialty} value={specialty}>
+                        {specialty}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="__custom__">+ Add Custom Specialty</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+              {formErrors.specialty && (
+                <p className="text-xs text-destructive">{formErrors.specialty}</p>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">
+                  Email {formErrors.email && <span className="text-destructive text-sm">*</span>}
+                </Label>
                 <Input
                   id="email"
                   type="email"
@@ -415,10 +695,16 @@ export default function DoctorsPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, email: e.target.value })
                   }
+                  className={formErrors.email ? "border-destructive" : ""}
                 />
+                {formErrors.email && (
+                  <p className="text-xs text-destructive">{formErrors.email}</p>
+                )}
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="phone">Phone</Label>
+                <Label htmlFor="phone">
+                  Phone {formErrors.phone && <span className="text-destructive text-sm">*</span>}
+                </Label>
                 <Input
                   id="phone"
                   placeholder="+1 555-0100"
@@ -426,12 +712,18 @@ export default function DoctorsPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, phone: e.target.value })
                   }
+                  className={formErrors.phone ? "border-destructive" : ""}
                 />
+                {formErrors.phone && (
+                  <p className="text-xs text-destructive">{formErrors.phone}</p>
+                )}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="experience">Years of Experience</Label>
+                <Label htmlFor="experience">
+                  Years of Experience {formErrors.experience && <span className="text-destructive text-sm">*</span>}
+                </Label>
                 <Input
                   id="experience"
                   type="number"
@@ -440,7 +732,11 @@ export default function DoctorsPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, experience: e.target.value })
                   }
+                  className={formErrors.experience ? "border-destructive" : ""}
                 />
+                {formErrors.experience && (
+                  <p className="text-xs text-destructive">{formErrors.experience}</p>
+                )}
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="status">Status</Label>
@@ -461,13 +757,107 @@ export default function DoctorsPage() {
                 </Select>
               </div>
             </div>
+
+            {/* Photo Upload */}
+            <div className="grid gap-2">
+              <Label>Photo</Label>
+              <div className="flex items-center gap-4">
+                <Avatar className="h-16 w-16">
+                  {photoPreview ? (
+                    <AvatarImage src={photoPreview} />
+                  ) : (
+                    <AvatarFallback>
+                      <Camera className="h-6 w-6 text-muted-foreground" />
+                    </AvatarFallback>
+                  )}
+                </Avatar>
+                <div className="flex flex-col gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoChange}
+                    className="hidden"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    {photoPreview ? "Change Photo" : "Upload Photo"}
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Max 5MB. JPEG, PNG, or WebP.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Qualifications */}
+            <div className="grid gap-2">
+              <Label htmlFor="qualifications">Qualifications</Label>
+              <Input
+                id="qualifications"
+                placeholder="MBBS, MD, FRCP"
+                value={formData.qualifications}
+                onChange={(e) =>
+                  setFormData({ ...formData, qualifications: e.target.value })
+                }
+              />
+            </div>
+
+            {/* Consultation Fee */}
+            <div className="grid gap-2">
+              <Label htmlFor="consultationFee">Consultation Fee ($)</Label>
+              <Input
+                id="consultationFee"
+                type="number"
+                placeholder="100"
+                value={formData.consultationFee}
+                onChange={(e) =>
+                  setFormData({ ...formData, consultationFee: e.target.value })
+                }
+              />
+            </div>
+
+            {/* Bio */}
+            <div className="grid gap-2">
+              <Label htmlFor="bio">Bio</Label>
+              <Textarea
+                id="bio"
+                placeholder="Brief description about the doctor..."
+                value={formData.bio}
+                onChange={(e) =>
+                  setFormData({ ...formData, bio: e.target.value })
+                }
+                rows={3}
+              />
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsDialogOpen(false)}
+              disabled={isMutating || isUploadingPhoto}
+            >
               Cancel
             </Button>
-            <Button onClick={handleSubmit}>
-              {editingDoctor ? "Save Changes" : "Add Doctor"}
+            <Button 
+              onClick={handleSubmit}
+              disabled={isMutating || isUploadingPhoto}
+            >
+              {isMutating || isUploadingPhoto ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  {isUploadingPhoto ? "Uploading Photo..." : "Saving..."}
+                </>
+              ) : editingDoctor ? (
+                "Save Changes"
+              ) : (
+                "Add Doctor"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -483,15 +873,33 @@ export default function DoctorsPage() {
               action cannot be undone.
             </DialogDescription>
           </DialogHeader>
+          {mutationError && (
+            <div className="flex items-center gap-2 bg-destructive/10 border border-destructive rounded p-3">
+              <AlertCircle className="h-4 w-4 text-destructive flex-shrink-0" />
+              <p className="text-sm text-destructive">{mutationError}</p>
+            </div>
+          )}
           <DialogFooter>
             <Button
               variant="outline"
               onClick={() => setIsDeleteDialogOpen(false)}
+              disabled={isMutating}
             >
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDelete}>
-              Delete
+            <Button 
+              variant="destructive" 
+              onClick={handleDelete}
+              disabled={isMutating}
+            >
+              {isMutating ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

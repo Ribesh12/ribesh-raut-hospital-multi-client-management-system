@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { LogoFull } from "@/components/logo";
 import {
@@ -12,6 +13,20 @@ import {
   NavigationMenuTrigger,
   navigationMenuTriggerStyle,
 } from "@/components/ui/navigation-menu";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { Separator } from "@/components/ui/separator";
 import {
   Phone,
   Mail,
@@ -26,6 +41,8 @@ import {
   Award,
   CheckCircle2,
   Sparkles,
+  Menu,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import React from "react";
@@ -133,15 +150,17 @@ const ListItem = React.forwardRef<
 ListItem.displayName = "ListItem";
 
 export function Header() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   return (
     <header className="bg-white">
       {/* Top bar */}
       <div className="bg-primary text-white py-2">
         <div className="container mx-auto px-4 flex items-center justify-between text-sm">
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4 md:gap-6">
             <div className="flex items-center gap-2">
-              <Phone className="h-4 w-4" />
-              <span>+1 (555) 000-0000</span>
+              <Phone className="h-3 w-3 md:h-4 md:w-4" />
+              <span className="text-xs md:text-sm">+1 (555) 000-0000</span>
             </div>
             <div className="hidden sm:flex items-center gap-2">
               <Mail className="h-4 w-4" />
@@ -157,13 +176,13 @@ export function Header() {
 
       {/* Main header */}
       <div className="border-b border-border">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+        <div className="container mx-auto px-4 py-3 md:py-4 flex items-center justify-between">
           <Link href="/">
             <LogoFull />
           </Link>
 
-          {/* Navigation */}
-          <NavigationMenu className="hidden md:flex">
+          {/* Desktop Navigation */}
+          <NavigationMenu className="hidden lg:flex">
             <NavigationMenuList>
               {/* Features Dropdown */}
               <NavigationMenuItem>
@@ -253,6 +272,15 @@ export function Header() {
                   asChild
                   className={navigationMenuTriggerStyle()}
                 >
+                  <Link href="/hospitals">Hospitals</Link>
+                </NavigationMenuLink>
+              </NavigationMenuItem>
+
+              <NavigationMenuItem>
+                <NavigationMenuLink
+                  asChild
+                  className={navigationMenuTriggerStyle()}
+                >
                   <Link href="/#testimonials">Testimonials</Link>
                 </NavigationMenuLink>
               </NavigationMenuItem>
@@ -277,14 +305,125 @@ export function Header() {
             </NavigationMenuList>
           </NavigationMenu>
 
-          {/* Auth buttons */}
-          <div className="flex items-center gap-3">
+          {/* Auth buttons - Desktop */}
+          <div className="hidden md:flex items-center gap-3">
             <Link href="/login">
               <Button variant="outline">Sign In</Button>
             </Link>
             <Link href="/register">
               <Button>Get Started</Button>
             </Link>
+          </div>
+
+          {/* Mobile Menu */}
+          <div className="flex lg:hidden items-center gap-2">
+            <Link href="/login" className="hidden sm:block">
+              <Button variant="outline" size="sm">Sign In</Button>
+            </Link>
+            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="lg:hidden">
+                  <Menu className="h-6 w-6" />
+                  <span className="sr-only">Toggle menu</span>
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-[300px] sm:w-[350px]">
+                <SheetHeader>
+                  <SheetTitle>
+                    <LogoFull />
+                  </SheetTitle>
+                </SheetHeader>
+                <nav className="flex flex-col gap-4 mt-8">
+                  <Accordion type="single" collapsible className="w-full">
+                    <AccordionItem value="features" className="border-b-0">
+                      <AccordionTrigger className="py-2 hover:no-underline">
+                        Features
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <div className="flex flex-col gap-2 pl-4">
+                          {features.map((feature) => (
+                            <Link
+                              key={feature.title}
+                              href={feature.href}
+                              className="flex items-center gap-2 py-2 text-sm text-muted-foreground hover:text-primary transition-colors"
+                              onClick={() => setMobileMenuOpen(false)}
+                            >
+                              <feature.icon className="h-4 w-4" />
+                              {feature.title}
+                            </Link>
+                          ))}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                    <AccordionItem value="pricing" className="border-b-0">
+                      <AccordionTrigger className="py-2 hover:no-underline">
+                        Pricing
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <div className="flex flex-col gap-3 pl-4">
+                          {pricingTiers.map((tier) => (
+                            <Link
+                              key={tier.name}
+                              href={tier.href}
+                              className="flex items-center gap-3 py-2"
+                              onClick={() => setMobileMenuOpen(false)}
+                            >
+                              <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", tier.bgColor)}>
+                                <tier.icon className={cn("h-4 w-4", tier.color)} />
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium">{tier.name}</p>
+                                <p className="text-xs text-muted-foreground">{tier.price}</p>
+                              </div>
+                            </Link>
+                          ))}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                  
+                  <Link
+                    href="/hospitals"
+                    className="py-2 font-medium hover:text-primary transition-colors"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Hospitals
+                  </Link>
+                  <Link
+                    href="/#testimonials"
+                    className="py-2 font-medium hover:text-primary transition-colors"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Testimonials
+                  </Link>
+                  <Link
+                    href="/#faq"
+                    className="py-2 font-medium hover:text-primary transition-colors"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    FAQ
+                  </Link>
+                  <Link
+                    href="/#contact"
+                    className="py-2 font-medium hover:text-primary transition-colors"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Contact
+                  </Link>
+
+                  <Separator className="my-2" />
+
+                  <div className="flex flex-col gap-2">
+                    <Link href="/login" onClick={() => setMobileMenuOpen(false)}>
+                      <Button variant="outline" className="w-full">Sign In</Button>
+                    </Link>
+                    <Link href="/register" onClick={() => setMobileMenuOpen(false)}>
+                      <Button className="w-full">Get Started</Button>
+                    </Link>
+                  </div>
+                </nav>
+              </SheetContent>
+            </Sheet>
           </div>
         </div>
       </div>

@@ -8,6 +8,8 @@ import {
   cancelAppointment,
   getAvailableSlots,
   getAppointmentById,
+  getPatients,
+  getPatientHistory,
 } from '../controllers/appointment.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
 
@@ -22,6 +24,10 @@ router.get('/by-user/:userId', authenticate, getAppointmentsByUser);
 router.get('/by-doctor/:doctorId', authenticate, getAppointmentsByDoctor);
 router.get('/by-hospital/:hospitalId', authenticate, getAppointmentsByHospital);
 router.get('/:appointmentId', authenticate, getAppointmentById);
+
+// Patient routes (derived from appointments)
+router.get('/patients/:hospitalId', authenticate, getPatients);
+router.get('/patients/:hospitalId/:patientEmail', authenticate, getPatientHistory);
 
 // Admin routes
 router.put('/:appointmentId/status', authenticate, updateAppointmentStatus);

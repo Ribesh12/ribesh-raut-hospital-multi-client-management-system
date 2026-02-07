@@ -23,6 +23,10 @@ const doctorSchema = new mongoose.Schema(
       ref: 'Hospital',
       required: true,
     },
+    photo: {
+      type: String,
+      default: '',
+    },
     qualifications: {
       type: String,
       default: '',
@@ -39,6 +43,25 @@ const doctorSchema = new mongoose.Schema(
     consultationFee: {
       type: Number,
       default: 0,
+    },
+    status: {
+      type: String,
+      enum: ['Active', 'On Leave', 'Inactive'],
+      default: 'Active',
+    },
+    workingDays: {
+      type: [String],
+      default: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+    },
+    workingHours: {
+      start: {
+        type: String,
+        default: '09:00',
+      },
+      end: {
+        type: String,
+        default: '17:00',
+      },
     },
   },
   { timestamps: true }

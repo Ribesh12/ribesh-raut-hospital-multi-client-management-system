@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/ui/data-table";
 import { Button } from "@/components/ui/button";
@@ -32,51 +32,27 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, MoreHorizontal, Pencil, Trash2, Clock } from "lucide-react";
+import { Plus, MoreHorizontal, Pencil, Trash2, Clock, Loader2 } from "lucide-react";
+import { scheduleAPI, doctorAPI } from "@/lib/api";
+
+type Doctor = {
+  _id: string;
+  name: string;
+  specialty: string;
+  photo?: string;
+};
 
 type Schedule = {
-  id: string;
-  doctorId: string;
-  doctorName: string;
-  doctorImage: string;
-  specialty: string;
+  _id: string;
+  doctorId: Doctor | string;
+  hospitalId: string;
   days: string[];
   startTime: string;
   endTime: string;
   maxPatients: number;
+  slotDuration: number;
   status: "Active" | "Inactive";
 };
-
-const doctors = [
-  {
-    id: "1",
-    name: "Dr. Sarah Wilson",
-    specialty: "Cardiology",
-    image:
-      "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=100&h=100&fit=crop&crop=face",
-  },
-  {
-    id: "2",
-    name: "Dr. Michael Chen",
-    specialty: "Neurology",
-    image:
-      "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=100&h=100&fit=crop&crop=face",
-  },
-  {
-    id: "3",
-    name: "Dr. James Brown",
-    specialty: "Orthopedics",
-    image:
-      "https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=100&h=100&fit=crop&crop=face",
-  },
-  {
-    id: "4",
-    name: "Dr. Lisa Anderson",
-    specialty: "Pediatrics",
-    image:
-      "https://images.unsplash.com/photo-1594824476967-48c8b964273f?w=100&h=100&fit=crop&crop=face",
-  },
-];
 
 const weekDays = [
   "Monday",
@@ -88,63 +64,11 @@ const weekDays = [
   "Sunday",
 ];
 
-const initialSchedules: Schedule[] = [
-  {
-    id: "1",
-    doctorId: "1",
-    doctorName: "Dr. Sarah Wilson",
-    doctorImage:
-      "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=100&h=100&fit=crop&crop=face",
-    specialty: "Cardiology",
-    days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-    startTime: "09:00",
-    endTime: "17:00",
-    maxPatients: 20,
-    status: "Active",
-  },
-  {
-    id: "2",
-    doctorId: "2",
-    doctorName: "Dr. Michael Chen",
-    doctorImage:
-      "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=100&h=100&fit=crop&crop=face",
-    specialty: "Neurology",
-    days: ["Monday", "Wednesday", "Friday"],
-    startTime: "10:00",
-    endTime: "18:00",
-    maxPatients: 15,
-    status: "Active",
-  },
-  {
-    id: "3",
-    doctorId: "3",
-    doctorName: "Dr. James Brown",
-    doctorImage:
-      "https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=100&h=100&fit=crop&crop=face",
-    specialty: "Orthopedics",
-    days: ["Tuesday", "Thursday", "Saturday"],
-    startTime: "08:00",
-    endTime: "14:00",
-    maxPatients: 12,
-    status: "Inactive",
-  },
-  {
-    id: "4",
-    doctorId: "4",
-    doctorName: "Dr. Lisa Anderson",
-    doctorImage:
-      "https://images.unsplash.com/photo-1594824476967-48c8b964273f?w=100&h=100&fit=crop&crop=face",
-    specialty: "Pediatrics",
-    days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
-    startTime: "09:00",
-    endTime: "15:00",
-    maxPatients: 25,
-    status: "Active",
-  },
-];
-
 export default function SchedulesPage() {
-  const [schedules, setSchedules] = useState<Schedule[]>(initialSchedules);
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
@@ -158,18 +82,67 @@ export default function SchedulesPage() {
     startTime: "",
     endTime: "",
     maxPatients: "",
+    slotDuration: "30",
     status: "Active" as Schedule["status"],
   });
+
+  // Get hospitalId from localStorage
+  const getHospitalId = () => {
+    if (typeof window !== 'undefined') {
+      const userInfo = localStorage.getItem('userInfo');
+      if (userInfo) {
+        const parsed = JSON.parse(userInfo);
+        return parsed.hospitalId;
+      }
+    }
+    return null;
+  };
+
+  // Fetch schedules and doctors on mount
+  useEffect(() => {
+    const fetchData = async () => {
+      const hospitalId = getHospitalId();
+      if (!hospitalId) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const [schedulesResponse, doctorsResponse] = await Promise.all([
+          scheduleAPI.getByHospital(hospitalId),
+          doctorAPI.getByHospital(hospitalId),
+        ]);
+        setSchedules(schedulesResponse.data as Schedule[]);
+        setDoctors(doctorsResponse.data as Doctor[]);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // Helper to get doctor info from schedule
+  const getDoctorFromSchedule = (schedule: Schedule): Doctor | undefined => {
+    if (typeof schedule.doctorId === 'object' && schedule.doctorId !== null) {
+      return schedule.doctorId as Doctor;
+    }
+    return doctors.find(d => d._id === schedule.doctorId);
+  };
 
   const handleOpenDialog = (schedule?: Schedule) => {
     if (schedule) {
       setEditingSchedule(schedule);
+      const doctor = getDoctorFromSchedule(schedule);
       setFormData({
-        doctorId: schedule.doctorId,
+        doctorId: doctor?._id || (typeof schedule.doctorId === 'string' ? schedule.doctorId : ''),
         days: schedule.days,
         startTime: schedule.startTime,
         endTime: schedule.endTime,
         maxPatients: schedule.maxPatients.toString(),
+        slotDuration: schedule.slotDuration?.toString() || "30",
         status: schedule.status,
       });
     } else {
@@ -180,50 +153,62 @@ export default function SchedulesPage() {
         startTime: "",
         endTime: "",
         maxPatients: "",
+        slotDuration: "30",
         status: "Active",
       });
     }
     setIsDialogOpen(true);
   };
 
-  const handleSubmit = () => {
-    const selectedDoctor = doctors.find((d) => d.id === formData.doctorId);
-    if (!selectedDoctor) return;
+  const handleSubmit = async () => {
+    const hospitalId = getHospitalId();
+    if (!hospitalId || !formData.doctorId) return;
 
-    if (editingSchedule) {
-      setSchedules(
-        schedules.map((s) =>
-          s.id === editingSchedule.id
-            ? {
-                ...s,
-                ...formData,
-                doctorName: selectedDoctor.name,
-                doctorImage: selectedDoctor.image,
-                specialty: selectedDoctor.specialty,
-                maxPatients: parseInt(formData.maxPatients),
-              }
-            : s,
-        ),
-      );
-    } else {
-      const newSchedule: Schedule = {
-        id: Date.now().toString(),
-        ...formData,
-        doctorName: selectedDoctor.name,
-        doctorImage: selectedDoctor.image,
-        specialty: selectedDoctor.specialty,
-        maxPatients: parseInt(formData.maxPatients),
+    setIsSaving(true);
+    try {
+      const scheduleData = {
+        doctorId: formData.doctorId,
+        hospitalId,
+        days: formData.days,
+        startTime: formData.startTime,
+        endTime: formData.endTime,
+        maxPatients: parseInt(formData.maxPatients) || 20,
+        slotDuration: parseInt(formData.slotDuration) || 30,
+        status: formData.status,
       };
-      setSchedules([...schedules, newSchedule]);
+
+      if (editingSchedule) {
+        const response = await scheduleAPI.update(editingSchedule._id, scheduleData);
+        setSchedules(
+          schedules.map((s) =>
+            s._id === editingSchedule._id ? (response.data as Schedule) : s
+          )
+        );
+      } else {
+        const response = await scheduleAPI.create(scheduleData);
+        setSchedules([...schedules, response.data as Schedule]);
+      }
+      setIsDialogOpen(false);
+    } catch (error) {
+      console.error('Error saving schedule:', error);
+    } finally {
+      setIsSaving(false);
     }
-    setIsDialogOpen(false);
   };
 
-  const handleDelete = () => {
-    if (deletingSchedule) {
-      setSchedules(schedules.filter((s) => s.id !== deletingSchedule.id));
+  const handleDelete = async () => {
+    if (!deletingSchedule) return;
+
+    setIsSaving(true);
+    try {
+      await scheduleAPI.delete(deletingSchedule._id);
+      setSchedules(schedules.filter((s) => s._id !== deletingSchedule._id));
       setIsDeleteDialogOpen(false);
       setDeletingSchedule(null);
+    } catch (error) {
+      console.error('Error deleting schedule:', error);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -258,21 +243,25 @@ export default function SchedulesPage() {
       header: "Doctor",
       cell: ({ row }) => {
         const schedule = row.original;
+        const doctor = getDoctorFromSchedule(schedule);
+        const doctorName = doctor?.name || 'Unknown Doctor';
+        const doctorSpecialty = doctor?.specialty || '';
+        const doctorPhoto = doctor?.photo || '';
         return (
           <div className="flex items-center gap-3">
             <Avatar className="h-10 w-10">
-              <AvatarImage src={schedule.doctorImage} />
+              <AvatarImage src={doctorPhoto ? `http://localhost:3002${doctorPhoto}` : ''} />
               <AvatarFallback>
-                {schedule.doctorName
+                {doctorName
                   .split(" ")
                   .map((n) => n[0])
                   .join("")}
               </AvatarFallback>
             </Avatar>
             <div>
-              <p className="font-medium">{schedule.doctorName}</p>
+              <p className="font-medium">{doctorName}</p>
               <p className="text-sm text-muted-foreground">
-                {schedule.specialty}
+                {doctorSpecialty}
               </p>
             </div>
           </div>
@@ -361,18 +350,24 @@ export default function SchedulesPage() {
             Manage doctor schedules and availability
           </p>
         </div>
-        <Button onClick={() => handleOpenDialog()}>
+        <Button onClick={() => handleOpenDialog()} disabled={doctors.length === 0}>
           <Plus className="h-4 w-4 mr-2" />
           Add Schedule
         </Button>
       </div>
 
-      <DataTable
-        columns={columns}
-        data={schedules}
-        searchKey="doctorName"
-        searchPlaceholder="Search by doctor name..."
-      />
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={schedules}
+          searchKey="doctorName"
+          searchPlaceholder="Search by doctor name..."
+        />
+      )}
 
       {/* Add/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -395,16 +390,17 @@ export default function SchedulesPage() {
                 onValueChange={(value) =>
                   setFormData({ ...formData, doctorId: value })
                 }
+                disabled={!!editingSchedule}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select a doctor" />
                 </SelectTrigger>
                 <SelectContent>
                   {doctors.map((doctor) => (
-                    <SelectItem key={doctor.id} value={doctor.id}>
+                    <SelectItem key={doctor._id} value={doctor._id}>
                       <div className="flex items-center gap-2">
                         <Avatar className="h-6 w-6">
-                          <AvatarImage src={doctor.image} />
+                          <AvatarImage src={doctor.photo ? `http://localhost:3002${doctor.photo}` : ''} />
                           <AvatarFallback>
                             {doctor.name
                               .split(" ")
@@ -495,10 +491,11 @@ export default function SchedulesPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSaving}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit}>
+            <Button onClick={handleSubmit} disabled={isSaving}>
+              {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               {editingSchedule ? "Save Changes" : "Add Schedule"}
             </Button>
           </DialogFooter>
@@ -511,18 +508,19 @@ export default function SchedulesPage() {
           <DialogHeader>
             <DialogTitle>Delete Schedule</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete the schedule for{" "}
-              {deletingSchedule?.doctorName}? This action cannot be undone.
+              Are you sure you want to delete this schedule? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button
               variant="outline"
               onClick={() => setIsDeleteDialogOpen(false)}
+              disabled={isSaving}
             >
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDelete}>
+            <Button variant="destructive" onClick={handleDelete} disabled={isSaving}>
+              {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Delete
             </Button>
           </DialogFooter>

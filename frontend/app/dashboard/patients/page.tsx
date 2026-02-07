@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/ui/data-table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
@@ -35,182 +34,83 @@ import {
   Users,
   UserCheck,
   UserX,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { patientAPI, APIError } from "@/lib/api";
 
 type Patient = {
   id: string;
   name: string;
   email: string;
   phone: string;
-  dob: string;
-  gender: "Male" | "Female" | "Other";
-  bloodGroup: string;
-  address: string;
-  emergencyContact: string;
   lastVisit: string;
   totalVisits: number;
+  completedVisits: number;
+  cancelledVisits: number;
   status: "Active" | "Inactive";
-  image: string;
 };
 
-const initialPatients: Patient[] = [
-  {
-    id: "1",
-    name: "John Smith",
-    email: "john.smith@email.com",
-    phone: "+1 555-1001",
-    dob: "1985-03-15",
-    gender: "Male",
-    bloodGroup: "A+",
-    address: "123 Main Street, New York, NY 10001",
-    emergencyContact: "+1 555-9001",
-    lastVisit: "2024-01-15",
-    totalVisits: 12,
-    status: "Active",
-    image:
-      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face",
-  },
-  {
-    id: "2",
-    name: "Emily Johnson",
-    email: "emily.johnson@email.com",
-    phone: "+1 555-1002",
-    dob: "1990-07-22",
-    gender: "Female",
-    bloodGroup: "B+",
-    address: "456 Oak Avenue, Los Angeles, CA 90001",
-    emergencyContact: "+1 555-9002",
-    lastVisit: "2024-01-18",
-    totalVisits: 8,
-    status: "Active",
-    image:
-      "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=face",
-  },
-  {
-    id: "3",
-    name: "Robert Davis",
-    email: "robert.davis@email.com",
-    phone: "+1 555-1003",
-    dob: "1978-11-08",
-    gender: "Male",
-    bloodGroup: "O+",
-    address: "789 Pine Road, Chicago, IL 60601",
-    emergencyContact: "+1 555-9003",
-    lastVisit: "2024-01-20",
-    totalVisits: 15,
-    status: "Active",
-    image:
-      "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop&crop=face",
-  },
-  {
-    id: "4",
-    name: "Maria Garcia",
-    email: "maria.garcia@email.com",
-    phone: "+1 555-1004",
-    dob: "1995-02-28",
-    gender: "Female",
-    bloodGroup: "AB+",
-    address: "321 Cedar Lane, Houston, TX 77001",
-    emergencyContact: "+1 555-9004",
-    lastVisit: "2024-01-19",
-    totalVisits: 5,
-    status: "Active",
-    image:
-      "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop&crop=face",
-  },
-  {
-    id: "5",
-    name: "David Miller",
-    email: "david.miller@email.com",
-    phone: "+1 555-1005",
-    dob: "1982-09-12",
-    gender: "Male",
-    bloodGroup: "A-",
-    address: "654 Maple Street, Phoenix, AZ 85001",
-    emergencyContact: "+1 555-9005",
-    lastVisit: "2024-01-17",
-    totalVisits: 20,
-    status: "Inactive",
-    image:
-      "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face",
-  },
-  {
-    id: "6",
-    name: "Susan Brown",
-    email: "susan.brown@email.com",
-    phone: "+1 555-1006",
-    dob: "1988-05-30",
-    gender: "Female",
-    bloodGroup: "B-",
-    address: "987 Elm Court, Philadelphia, PA 19101",
-    emergencyContact: "+1 555-9006",
-    lastVisit: "2024-01-14",
-    totalVisits: 9,
-    status: "Active",
-    image:
-      "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop&crop=face",
-  },
-  {
-    id: "7",
-    name: "James Wilson",
-    email: "james.wilson@email.com",
-    phone: "+1 555-1007",
-    dob: "1972-12-05",
-    gender: "Male",
-    bloodGroup: "O-",
-    address: "159 Birch Avenue, San Antonio, TX 78201",
-    emergencyContact: "+1 555-9007",
-    lastVisit: "2024-01-10",
-    totalVisits: 25,
-    status: "Active",
-    image:
-      "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=100&h=100&fit=crop&crop=face",
-  },
-  {
-    id: "8",
-    name: "Patricia Moore",
-    email: "patricia.moore@email.com",
-    phone: "+1 555-1008",
-    dob: "1998-08-17",
-    gender: "Female",
-    bloodGroup: "AB-",
-    address: "753 Walnut Drive, San Diego, CA 92101",
-    emergencyContact: "+1 555-9008",
-    lastVisit: "2024-01-21",
-    totalVisits: 3,
-    status: "Active",
-    image:
-      "https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=100&h=100&fit=crop&crop=face",
-  },
-];
-
 export default function PatientsPage() {
-  const [patients] = useState<Patient[]>(initialPatients);
+  const [patients, setPatients] = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [patientHistory, setPatientHistory] = useState<any[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
+  useEffect(() => {
+    fetchPatients();
+  }, []);
+
+  const fetchPatients = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const user = JSON.parse(localStorage.getItem("userInfo") || "{}");
+      const hospitalId = user?.hospitalId || user?._id || user?.id;
+
+      if (!hospitalId) {
+        setError("Hospital ID not found. Please log in again.");
+        return;
+      }
+
+      const response = await patientAPI.getByHospital(hospitalId);
+      setPatients(response.data || []);
+    } catch (err: any) {
+      console.error("Error fetching patients:", err);
+      setError(err.message || "Failed to load patients");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const activeCount = patients.filter((p) => p.status === "Active").length;
   const inactiveCount = patients.filter((p) => p.status === "Inactive").length;
 
-  const handleViewPatient = (patient: Patient) => {
+  const handleViewPatient = async (patient: Patient) => {
     setSelectedPatient(patient);
     setIsDialogOpen(true);
-  };
-
-  const calculateAge = (dob: string) => {
-    const birthDate = new Date(dob);
-    const today = new Date();
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    if (
-      monthDiff < 0 ||
-      (monthDiff === 0 && today.getDate() < birthDate.getDate())
-    ) {
-      age--;
+    setPatientHistory([]);
+    
+    // Fetch patient history
+    try {
+      setIsLoadingHistory(true);
+      const user = JSON.parse(localStorage.getItem("userInfo") || "{}");
+      const hospitalId = user?.hospitalId || user?._id || user?.id;
+      
+      if (hospitalId && patient.email) {
+        const response = await patientAPI.getHistory(hospitalId, patient.email);
+        setPatientHistory(response.data || []);
+      }
+    } catch (err) {
+      console.error("Error fetching patient history:", err);
+    } finally {
+      setIsLoadingHistory(false);
     }
-    return age;
   };
 
   const downloadPatientPDF = (patient: Patient) => {
@@ -237,14 +137,10 @@ export default function PatientsPage() {
       ["Full Name", patient.name],
       ["Email", patient.email],
       ["Phone", patient.phone],
-      ["Date of Birth", new Date(patient.dob).toLocaleDateString()],
-      ["Age", `${calculateAge(patient.dob)} years`],
-      ["Gender", patient.gender],
-      ["Blood Group", patient.bloodGroup],
-      ["Address", patient.address],
-      ["Emergency Contact", patient.emergencyContact],
       ["Status", patient.status],
       ["Total Visits", patient.totalVisits.toString()],
+      ["Completed Visits", patient.completedVisits?.toString() || "0"],
+      ["Cancelled Visits", patient.cancelledVisits?.toString() || "0"],
       ["Last Visit", new Date(patient.lastVisit).toLocaleDateString()],
     ];
 
@@ -262,7 +158,7 @@ export default function PatientsPage() {
     doc.setFontSize(8);
     doc.setTextColor(150);
     doc.text(
-      `Generated on ${new Date().toLocaleString()} - City General Hospital`,
+      `Generated on ${new Date().toLocaleString()}`,
       105,
       pageHeight - 10,
       { align: "center" },
@@ -293,10 +189,8 @@ export default function PatientsPage() {
       p.name,
       p.email,
       p.phone,
-      p.gender,
-      p.bloodGroup,
-      `${calculateAge(p.dob)} yrs`,
       p.totalVisits.toString(),
+      p.completedVisits?.toString() || "0",
       new Date(p.lastVisit).toLocaleDateString(),
       p.status,
     ]);
@@ -308,10 +202,8 @@ export default function PatientsPage() {
           "Name",
           "Email",
           "Phone",
-          "Gender",
-          "Blood",
-          "Age",
-          "Visits",
+          "Total Visits",
+          "Completed",
           "Last Visit",
           "Status",
         ],
@@ -327,7 +219,7 @@ export default function PatientsPage() {
     doc.setFontSize(8);
     doc.setTextColor(150);
     doc.text(
-      `Total Patients: ${patients.length} | City General Hospital`,
+      `Total Patients: ${patients.length}`,
       148,
       pageHeight - 10,
       { align: "center" },
@@ -352,15 +244,9 @@ export default function PatientsPage() {
         const patient = row.original;
         return (
           <div className="flex items-center gap-3">
-            <Avatar className="h-10 w-10">
-              <AvatarImage src={patient.image} />
-              <AvatarFallback>
-                {patient.name
-                  .split(" ")
-                  .map((n) => n[0])
-                  .join("")}
-              </AvatarFallback>
-            </Avatar>
+            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+              <User className="h-5 w-5 text-primary" />
+            </div>
             <div>
               <p className="font-medium">{patient.name}</p>
               <p className="text-sm text-muted-foreground">{patient.email}</p>
@@ -380,32 +266,20 @@ export default function PatientsPage() {
       ),
     },
     {
-      accessorKey: "gender",
-      header: "Gender / Age",
-      cell: ({ row }) => (
-        <div>
-          <p>{row.original.gender}</p>
-          <p className="text-sm text-muted-foreground">
-            {calculateAge(row.original.dob)} years
-          </p>
-        </div>
-      ),
-    },
-    {
-      accessorKey: "bloodGroup",
-      header: "Blood Group",
-      cell: ({ row }) => (
-        <Badge variant="outline" className="font-semibold">
-          {row.original.bloodGroup}
-        </Badge>
-      ),
-    },
-    {
       accessorKey: "totalVisits",
       header: "Total Visits",
       cell: ({ row }) => (
         <span className="text-muted-foreground">
           {row.original.totalVisits}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "completedVisits",
+      header: "Completed",
+      cell: ({ row }) => (
+        <span className="text-green-600 font-medium">
+          {row.original.completedVisits || 0}
         </span>
       ),
     },
@@ -458,6 +332,34 @@ export default function PatientsPage() {
     },
   ];
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full py-12">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading patients...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="bg-destructive/10 border-destructive">
+        <CardContent className="flex items-center gap-4 pt-6">
+          <AlertCircle className="h-6 w-6 text-destructive flex-shrink-0" />
+          <div className="flex-1">
+            <p className="font-semibold text-destructive">Error Loading Patients</p>
+            <p className="text-sm text-destructive/80">{error}</p>
+          </div>
+          <Button onClick={fetchPatients} variant="outline" size="sm">
+            Retry
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -466,7 +368,7 @@ export default function PatientsPage() {
             View and manage patient records
           </p>
         </div>
-        <Button onClick={downloadAllPatientsPDF}>
+        <Button onClick={downloadAllPatientsPDF} disabled={patients.length === 0}>
           <Download className="h-4 w-4 mr-2" />
           Export All to PDF
         </Button>
@@ -526,15 +428,9 @@ export default function PatientsPage() {
               </DialogHeader>
               <div className="space-y-6">
                 <div className="flex items-start gap-4">
-                  <Avatar className="h-16 w-16">
-                    <AvatarImage src={selectedPatient.image} />
-                    <AvatarFallback className="text-lg">
-                      {selectedPatient.name
-                        .split(" ")
-                        .map((n) => n[0])
-                        .join("")}
-                    </AvatarFallback>
-                  </Avatar>
+                  <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
+                    <User className="h-8 w-8 text-primary" />
+                  </div>
                   <div className="flex-1">
                     <div className="flex items-center justify-between">
                       <h3 className="text-lg font-semibold">
@@ -542,8 +438,8 @@ export default function PatientsPage() {
                       </h3>
                       {getStatusBadge(selectedPatient.status)}
                     </div>
-                    <p className="text-muted-foreground">
-                      Patient ID: #{selectedPatient.id.padStart(6, "0")}
+                    <p className="text-muted-foreground text-sm">
+                      {selectedPatient.email}
                     </p>
                   </div>
                 </div>
@@ -560,29 +456,14 @@ export default function PatientsPage() {
                       <Phone className="h-4 w-4 text-muted-foreground" />
                       <span>{selectedPatient.phone}</span>
                     </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <User className="h-4 w-4 text-muted-foreground" />
-                      <span>
-                        {selectedPatient.gender},{" "}
-                        {calculateAge(selectedPatient.dob)} years
-                      </span>
-                    </div>
+                  </div>
+                  <div className="space-y-3">
                     <div className="flex items-center gap-2 text-sm">
                       <Calendar className="h-4 w-4 text-muted-foreground" />
                       <span>
-                        Born:{" "}
-                        {new Date(selectedPatient.dob).toLocaleDateString()}
+                        Last Visit:{" "}
+                        {new Date(selectedPatient.lastVisit).toLocaleDateString()}
                       </span>
-                    </div>
-                  </div>
-                  <div className="space-y-3">
-                    <div className="flex items-start gap-2 text-sm">
-                      <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
-                      <span>{selectedPatient.address}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <Phone className="h-4 w-4 text-muted-foreground" />
-                      <span>Emergency: {selectedPatient.emergencyContact}</span>
                     </div>
                   </div>
                 </div>
@@ -591,12 +472,6 @@ export default function PatientsPage() {
 
                 <div className="grid grid-cols-3 gap-4 text-center">
                   <div className="p-3 bg-secondary rounded-lg">
-                    <p className="text-2xl font-bold text-primary">
-                      {selectedPatient.bloodGroup}
-                    </p>
-                    <p className="text-xs text-muted-foreground">Blood Group</p>
-                  </div>
-                  <div className="p-3 bg-secondary rounded-lg">
                     <p className="text-2xl font-bold">
                       {selectedPatient.totalVisits}
                     </p>
@@ -604,16 +479,62 @@ export default function PatientsPage() {
                       Total Visits
                     </p>
                   </div>
-                  <div className="p-3 bg-secondary rounded-lg">
-                    <p className="text-2xl font-bold">
-                      {new Date(selectedPatient.lastVisit).toLocaleDateString(
-                        "en-US",
-                        { month: "short", day: "numeric" },
-                      )}
+                  <div className="p-3 bg-green-50 rounded-lg">
+                    <p className="text-2xl font-bold text-green-600">
+                      {selectedPatient.completedVisits || 0}
                     </p>
-                    <p className="text-xs text-muted-foreground">Last Visit</p>
+                    <p className="text-xs text-muted-foreground">
+                      Completed
+                    </p>
+                  </div>
+                  <div className="p-3 bg-red-50 rounded-lg">
+                    <p className="text-2xl font-bold text-red-600">
+                      {selectedPatient.cancelledVisits || 0}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Cancelled
+                    </p>
                   </div>
                 </div>
+
+                {/* Appointment History */}
+                {isLoadingHistory ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  </div>
+                ) : patientHistory.length > 0 ? (
+                  <div className="space-y-2">
+                    <h4 className="font-medium">Recent Appointments</h4>
+                    <div className="max-h-48 overflow-y-auto space-y-2">
+                      {patientHistory.slice(0, 5).map((apt: any) => (
+                        <div
+                          key={apt._id}
+                          className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
+                        >
+                          <div>
+                            <p className="text-sm font-medium">
+                              {apt.doctorId?.name ? `Dr. ${apt.doctorId.name}` : "Doctor"}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(apt.appointmentDate).toLocaleDateString()} - {apt.doctorId?.specialty || "N/A"}
+                            </p>
+                          </div>
+                          <Badge
+                            variant={
+                              apt.status === "completed"
+                                ? "default"
+                                : apt.status === "cancelled"
+                                ? "destructive"
+                                : "secondary"
+                            }
+                          >
+                            {apt.status}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
 
                 <div className="flex justify-end gap-2">
                   <Button

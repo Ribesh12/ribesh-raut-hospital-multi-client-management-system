@@ -9,19 +9,58 @@ import {
 import {
   sendAppointmentConfirmationToDoctor,
   sendAppointmentCancellationToDoctor,
+  sendAppointmentConfirmationToPatient,
 } from '../services/email.service.js';
 
 export const createAppointmentRequest = async (req, res) => {
   try {
-    const { error, value } = createAppointmentSchema.validate(req.body);
-    if (error) {
-      const messages = error.details.map((detail) => detail.message);
-      return res.status(400).json({ errors: messages });
+    // Handle both old format (with Joi validation) and new format (direct from frontend)
+    const {
+      doctorId,
+      hospitalId,
+      appointmentDate,
+      appointmentTime,
+      patientName,
+      patientEmail,
+      patientPhone,
+      reason,
+      notes,
+      userName,
+      userEmail,
+      userPhone,
+      duration = 30,
+    } = req.body;
+
+    // Validate required fields
+    if (!patientName && !userName) {
+      return res.status(400).json({ error: 'Patient name is required' });
+    }
+    if (!patientEmail && !userEmail) {
+      return res.status(400).json({ error: 'Patient email is required' });
+    }
+    if (!patientPhone && !userPhone) {
+      return res.status(400).json({ error: 'Patient phone is required' });
+    }
+    if (!doctorId) {
+      return res.status(400).json({ error: 'Doctor ID is required' });
+    }
+    if (!hospitalId) {
+      return res.status(400).json({ error: 'Hospital ID is required' });
+    }
+    if (!appointmentDate) {
+      return res.status(400).json({ error: 'Appointment date is required' });
     }
 
-    const { doctorId, hospitalId, appointmentDate, duration, notes, userName, userEmail, userPhone, userId } = value;
+    // Combine date and time
+    let appointmentDateObj;
+    if (appointmentTime) {
+      const [hours, minutes] = appointmentTime.split(':').map(Number);
+      appointmentDateObj = new Date(appointmentDate);
+      appointmentDateObj.setHours(hours, minutes, 0, 0);
+    } else {
+      appointmentDateObj = new Date(appointmentDate);
+    }
 
-    const appointmentDateObj = new Date(appointmentDate);
     if (appointmentDateObj < new Date()) {
       return res.status(400).json({ error: 'Appointment date cannot be in the past' });
     }
@@ -31,6 +70,7 @@ export const createAppointmentRequest = async (req, res) => {
       return res.status(404).json({ error: 'Doctor not found' });
     }
 
+    // Check for conflicts
     const appointmentEndTime = new Date(appointmentDateObj.getTime() + duration * 60000);
     const existingAppointments = await Appointment.find({
       doctorId,
@@ -49,14 +89,14 @@ export const createAppointmentRequest = async (req, res) => {
 
     const appointment = new Appointment({
       doctorId,
-      userId: userId || 'guest',
-      userName,
-      userEmail,
-      userPhone,
+      userId: 'guest',
+      userName: patientName || userName,
+      userEmail: patientEmail || userEmail,
+      userPhone: patientPhone || userPhone,
       hospitalId,
       appointmentDate: appointmentDateObj,
       duration,
-      notes: notes || '',
+      notes: reason || notes || '',
       status: 'pending',
     });
 
@@ -67,9 +107,10 @@ export const createAppointmentRequest = async (req, res) => {
 
     res.status(201).json({
       message: 'Appointment request created successfully',
-      appointment,
+      data: appointment,
     });
   } catch (error) {
+    console.error('Error creating appointment:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -121,6 +162,11 @@ export const getAppointmentsByHospital = async (req, res) => {
     const { hospitalId } = req.params;
     const { status, doctorId } = req.query;
 
+    // Verify user has access to this hospital
+    if (req.user.userType === 'hospital_admin' && req.user.hospitalId !== hospitalId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
     let filter = { hospitalId };
     if (status) {
       filter.status = status;
@@ -132,81 +178,122 @@ export const getAppointmentsByHospital = async (req, res) => {
     const appointments = await Appointment.find(filter)
       .populate('doctorId')
       .populate('hospitalId')
-      .sort({ appointmentDate: 1 });
+      .sort({ appointmentDate: -1 });
 
-    res.status(200).json(appointments);
+    res.status(200).json({
+      message: 'Appointments retrieved successfully',
+      data: appointments,
+    });
   } catch (error) {
+    console.error('Error fetching appointments:', error);
     res.status(500).json({ error: error.message });
   }
 };
 
 export const updateAppointmentStatus = async (req, res) => {
   try {
-    const { error, value } = updateAppointmentStatusSchema.validate(req.body);
-    if (error) {
-      const messages = error.details.map((detail) => detail.message);
-      return res.status(400).json({ errors: messages });
+    const { appointmentId } = req.params;
+    const { status } = req.body;
+
+    if (!status) {
+      return res.status(400).json({ error: 'Status is required' });
     }
 
-    const { appointmentId } = req.params;
-    const { status, adminNotes } = value;
+    // Find appointment first to check hospital access
+    const appointment = await Appointment.findById(appointmentId);
+    if (!appointment) {
+      return res.status(404).json({ error: 'Appointment not found' });
+    }
 
-    const appointment = await Appointment.findByIdAndUpdate(
+    // Verify user has access to this hospital
+    if (req.user.userType === 'hospital_admin' && req.user.hospitalId !== appointment.hospitalId.toString()) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // Normalize status to match database values
+    const validStatuses = ['pending', 'confirmed', 'cancelled', 'completed'];
+    const normalizedStatus = status.toLowerCase();
+    
+    if (!validStatuses.includes(normalizedStatus)) {
+      return res.status(400).json({ error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
+    }
+
+    const updatedAppointment = await Appointment.findByIdAndUpdate(
       appointmentId,
-      { 
-        status, 
-        adminNotes: adminNotes || '' 
-      },
+      { status: normalizedStatus },
       { new: true }
     )
       .populate('doctorId')
       .populate('hospitalId');
 
-    if (!appointment) {
-      return res.status(404).json({ error: 'Appointment not found' });
-    }
+    // Send confirmation emails when appointment is confirmed
+    if (normalizedStatus === 'confirmed' && updatedAppointment.doctorId && updatedAppointment.hospitalId) {
+      const doctor = updatedAppointment.doctorId;
+      const hospital = updatedAppointment.hospitalId;
+      
+      // Send email to patient
+      try {
+        await sendAppointmentConfirmationToPatient({
+          patientEmail: updatedAppointment.userEmail,
+          patientName: updatedAppointment.userName,
+          doctorName: doctor.name,
+          doctorSpecialty: doctor.specialty,
+          appointmentDate: updatedAppointment.appointmentDate,
+          duration: updatedAppointment.duration || 30,
+          hospitalName: hospital.name,
+          hospitalAddress: hospital.address,
+          hospitalPhone: hospital.phone,
+        });
+        console.log('Patient confirmation email sent successfully');
+      } catch (emailError) {
+        console.error('Failed to send patient confirmation email:', emailError);
+      }
 
-    // Send confirmation email to doctor if appointment is confirmed
-    if (status === 'confirmed' && appointment.doctorId && appointment.doctorId.email) {
-      const hospital = await Hospital.findById(appointment.hospitalId);
-      const emailData = {
-        doctorEmail: appointment.doctorId.email,
-        doctorName: appointment.doctorId.name,
-        patientName: appointment.userName,
-        patientEmail: appointment.userEmail,
-        patientPhone: appointment.userPhone,
-        appointmentDate: appointment.appointmentDate,
-        duration: appointment.duration,
-        hospitalName: hospital?.name || 'Hospital',
-        notes: appointment.notes,
-      };
-
-      sendAppointmentConfirmationToDoctor(emailData).catch((err) => {
-        console.error('Failed to send confirmation email:', err);
-      });
+      // Send email to doctor
+      try {
+        await sendAppointmentConfirmationToDoctor({
+          doctorEmail: doctor.email,
+          doctorName: doctor.name,
+          patientName: updatedAppointment.userName,
+          patientEmail: updatedAppointment.userEmail,
+          patientPhone: updatedAppointment.userPhone,
+          appointmentDate: updatedAppointment.appointmentDate,
+          duration: updatedAppointment.duration || 30,
+          hospitalName: hospital.name,
+          notes: updatedAppointment.notes,
+        });
+        console.log('Doctor confirmation email sent successfully');
+      } catch (emailError) {
+        console.error('Failed to send doctor confirmation email:', emailError);
+      }
     }
 
     res.status(200).json({
       message: 'Appointment status updated successfully',
-      appointment,
+      data: updatedAppointment,
     });
   } catch (error) {
+    console.error('Error updating appointment status:', error);
     res.status(500).json({ error: error.message });
   }
 };
 
 export const cancelAppointment = async (req, res) => {
   try {
-    const { error, value } = cancelAppointmentSchema.validate(req.body);
-    if (error) {
-      const messages = error.details.map((detail) => detail.message);
-      return res.status(400).json({ errors: messages });
+    const { appointmentId } = req.params;
+    const { reason } = req.body;
+
+    const appointment = await Appointment.findById(appointmentId);
+    if (!appointment) {
+      return res.status(404).json({ error: 'Appointment not found' });
     }
 
-    const { appointmentId } = req.params;
-    const { reason } = value;
+    // Verify user has access to this hospital
+    if (req.user.userType === 'hospital_admin' && req.user.hospitalId !== appointment.hospitalId.toString()) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
 
-    const appointment = await Appointment.findByIdAndUpdate(
+    const updatedAppointment = await Appointment.findByIdAndUpdate(
       appointmentId,
       { 
         status: 'cancelled',
@@ -217,17 +304,13 @@ export const cancelAppointment = async (req, res) => {
       .populate('doctorId')
       .populate('hospitalId');
 
-    if (!appointment) {
-      return res.status(404).json({ error: 'Appointment not found' });
-    }
-
-    if (appointment.doctorId && appointment.doctorId.email) {
-      const hospital = await Hospital.findById(appointment.hospitalId);
+    if (updatedAppointment.doctorId && updatedAppointment.doctorId.email) {
+      const hospital = await Hospital.findById(updatedAppointment.hospitalId);
       const emailData = {
-        doctorEmail: appointment.doctorId.email,
-        doctorName: appointment.doctorId.name,
-        patientName: appointment.userName,
-        appointmentDate: appointment.appointmentDate,
+        doctorEmail: updatedAppointment.doctorId.email,
+        doctorName: updatedAppointment.doctorId.name,
+        patientName: updatedAppointment.userName,
+        appointmentDate: updatedAppointment.appointmentDate,
         hospitalName: hospital?.name || 'Hospital',
         cancellationReason: reason || 'Cancelled',
       };
@@ -239,7 +322,7 @@ export const cancelAppointment = async (req, res) => {
 
     res.status(200).json({
       message: 'Appointment cancelled successfully',
-      appointment,
+      data: updatedAppointment,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -290,9 +373,12 @@ export const getAvailableSlots = async (req, res) => {
         }
 
         if (isAvailable) {
+          // Format time as HH:MM for consistency
+          const formattedTime = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
           availableSlots.push({
-            time: slotTime.toISOString(),
-            label: `${hour}:${minute === 0 ? '00' : minute}`,
+            time: formattedTime,
+            label: formattedTime,
+            isoTime: slotTime.toISOString(),
           });
         }
       }
@@ -316,8 +402,105 @@ export const getAppointmentById = async (req, res) => {
       return res.status(404).json({ error: 'Appointment not found' });
     }
 
-    res.status(200).json(appointment);
+    // Verify user has access to this appointment's hospital
+    if (req.user.userType === 'hospital_admin' && req.user.hospitalId !== appointment.hospitalId._id.toString()) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    res.status(200).json({
+      message: 'Appointment retrieved successfully',
+      data: appointment,
+    });
   } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Get unique patients from appointments for a hospital
+export const getPatients = async (req, res) => {
+  try {
+    const { hospitalId } = req.params;
+
+    // Verify user has access to this hospital
+    if (req.user.userType === 'hospital_admin' && req.user.hospitalId !== hospitalId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // Aggregate unique patients from appointments
+    const patients = await Appointment.aggregate([
+      { $match: { hospitalId: new (await import('mongoose')).default.Types.ObjectId(hospitalId) } },
+      {
+        $group: {
+          _id: '$userEmail',
+          name: { $first: '$userName' },
+          email: { $first: '$userEmail' },
+          phone: { $first: '$userPhone' },
+          lastVisit: { $max: '$appointmentDate' },
+          totalVisits: { $sum: 1 },
+          completedVisits: {
+            $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] }
+          },
+          cancelledVisits: {
+            $sum: { $cond: [{ $eq: ['$status', 'cancelled'] }, 1, 0] }
+          },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          id: '$_id',
+          name: 1,
+          email: 1,
+          phone: 1,
+          lastVisit: 1,
+          totalVisits: 1,
+          completedVisits: 1,
+          cancelledVisits: 1,
+          status: {
+            $cond: {
+              if: { $gte: ['$lastVisit', new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)] },
+              then: 'Active',
+              else: 'Inactive'
+            }
+          }
+        },
+      },
+      { $sort: { lastVisit: -1 } },
+    ]);
+
+    res.status(200).json({
+      message: 'Patients retrieved successfully',
+      data: patients,
+    });
+  } catch (error) {
+    console.error('Error fetching patients:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Get patient history (appointments for a specific patient)
+export const getPatientHistory = async (req, res) => {
+  try {
+    const { hospitalId, patientEmail } = req.params;
+
+    // Verify user has access to this hospital
+    if (req.user.userType === 'hospital_admin' && req.user.hospitalId !== hospitalId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const appointments = await Appointment.find({
+      hospitalId,
+      userEmail: decodeURIComponent(patientEmail),
+    })
+      .populate('doctorId', 'name specialty')
+      .sort({ appointmentDate: -1 });
+
+    res.status(200).json({
+      message: 'Patient history retrieved successfully',
+      data: appointments,
+    });
+  } catch (error) {
+    console.error('Error fetching patient history:', error);
     res.status(500).json({ error: error.message });
   }
 };

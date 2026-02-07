@@ -15,26 +15,98 @@ import {
   Building2,
   Users,
   Calendar,
+  AlertCircle,
+  Loader2,
+  User,
 } from "lucide-react";
+import { authAPI, tokenManager, APIError } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
   const [formData, setFormData] = useState({
-    email: "",
+    identifier: "",
     password: "",
   });
-  const [error, setError] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isLoading, setIsLoading] = useState(false);
+  const [serverError, setServerError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    // Clear error for this field when user starts typing
+    if (errors[name]) {
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
+    setServerError("");
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
+    setServerError("");
+    setErrors({});
 
-    if (!formData.email || !formData.password) {
-      setError("Please fill in all fields");
+    // Simple validation - just check fields are not empty
+    const validationErrors: Record<string, string> = {};
+    if (!formData.identifier.trim()) {
+      validationErrors.identifier = "Email or username is required";
+    }
+    if (!formData.password) {
+      validationErrors.password = "Password is required";
+    }
+    
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
       return;
     }
 
-    router.push("/dashboard");
+    setIsLoading(true);
+
+    try {
+      const response = await authAPI.login(formData.identifier, formData.password);
+      console.log("Login response:", response);
+
+      if (response.data && response.data.token) {
+        // Store token and user info
+        tokenManager.setToken(response.data.token);
+        
+        const userInfo = {
+          id: response.data.user?.id,
+          hospitalId: response.data.user?.hospitalId || response.data.user?.id,
+          userType: response.data.userType,
+          ...response.data.user,
+        };
+        console.log("Storing userInfo:", userInfo);
+        localStorage.setItem("userInfo", JSON.stringify(userInfo));
+
+        // Redirect based on user type
+        console.log("Redirecting based on user type:", response.data.userType);
+        if (response.data.userType === "website_admin") {
+          router.push("/super-admin");
+        } else {
+          router.push("/dashboard");
+        }
+      } else {
+        console.error("No token in response:", response);
+        setServerError("Login successful but no token received. Please try again.");
+      }
+    } catch (error) {
+      if (error instanceof APIError) {
+        if (error.errors && error.errors.length > 0) {
+          setServerError(error.errors[0]);
+        } else {
+          setServerError(error.message || "Login failed. Please try again.");
+        }
+      } else {
+        setServerError("An unexpected error occurred. Please try again.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -48,31 +120,35 @@ export default function LoginPage() {
 
           <h1 className="text-3xl font-bold mb-2">Welcome back</h1>
           <p className="text-muted-foreground mb-8">
-            Sign in to access your hospital dashboard
+            Sign in to access your dashboard
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            {error && (
-              <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg">
-                {error}
+            {serverError && (
+              <div className="p-3 flex gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg">
+                <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                <span>{serverError}</span>
               </div>
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="email">Email address</Label>
+              <Label htmlFor="identifier">Email or Username</Label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  id="email"
-                  type="email"
-                  placeholder="name@hospital.com"
-                  className="pl-10"
-                  value={formData.email}
-                  onChange={(e) =>
-                    setFormData({ ...formData, email: e.target.value })
-                  }
+                  id="identifier"
+                  name="identifier"
+                  type="text"
+                  placeholder="Email or username"
+                  className={`pl-10 ${errors.identifier ? "border-red-500" : ""}`}
+                  value={formData.identifier}
+                  onChange={handleChange}
+                  disabled={isLoading}
                 />
               </div>
+              {errors.identifier && (
+                <p className="text-xs text-red-600">{errors.identifier}</p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -86,20 +162,32 @@ export default function LoginPage() {
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="password"
+                  name="password"
                   type="password"
                   placeholder="Enter your password"
-                  className="pl-10"
+                  className={`pl-10 ${errors.password ? "border-red-500" : ""}`}
                   value={formData.password}
-                  onChange={(e) =>
-                    setFormData({ ...formData, password: e.target.value })
-                  }
+                  onChange={handleChange}
+                  disabled={isLoading}
                 />
               </div>
+              {errors.password && (
+                <p className="text-xs text-red-600">{errors.password}</p>
+              )}
             </div>
 
-            <Button type="submit" className="w-full gap-2" size="lg">
-              Sign in
-              <ArrowRight className="h-4 w-4" />
+            <Button type="submit" className="w-full gap-2" size="lg" disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                <>
+                  Sign in
+                  <ArrowRight className="h-4 w-4" />
+                </>
+              )}
             </Button>
           </form>
 
