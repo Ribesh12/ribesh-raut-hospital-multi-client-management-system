@@ -4,10 +4,16 @@ export const validateEmail = (email: string): boolean => {
   return emailRegex.test(email);
 };
 
-// Phone validation (Nepali format: +977 98XXXXXXXX - 10 digits after 977)
+// Phone validation (Nepali format: +977 98XXXXXXXX or 98XXXXXXXX - optional)
 export const validatePhone = (phone: string): boolean => {
-  const phoneRegex = /^[\+]?977[-\s]?9[6789][-\s]?\d{8}$/;
-  return phoneRegex.test(phone);
+  // Phone is optional, empty string is valid
+  if (!phone || phone.trim() === '') {
+    return true;
+  }
+  // Accepts: +977 9824558987, +9779824558987, 9824558987, 98 24558987, etc.
+  // Must start with 98, 97, 96, or 99 (Nepali mobile prefixes)
+  const phoneRegex = /^(\+?977[-\s]?)?9[6789][-\s]?\d{8}$/;
+  return phoneRegex.test(phone.trim());
 };
 
 // Password validation

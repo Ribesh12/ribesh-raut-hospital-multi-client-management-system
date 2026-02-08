@@ -73,8 +73,8 @@ export default function RegisterPage() {
       fieldErrors.email = ["Invalid email address"];
     }
 
-    if (!validatePhone(formData.phone)) {
-      fieldErrors.phone = ["Invalid phone number"];
+    if (formData.phone && !validatePhone(formData.phone)) {
+      fieldErrors.phone = ["Invalid phone number format (e.g., +977 9824558987 or 9824558987)"];
     }
 
     if (!formData.address || formData.address.trim().length === 0) {
@@ -259,7 +259,7 @@ export default function RegisterPage() {
                     id="phone"
                     name="phone"
                     type="tel"
-                    placeholder="+1 (555) 000-0000"
+                    placeholder="+977 9xxxxxxxxx"
                     className={`pl-10 ${errors.phone ? "border-red-500" : ""}`}
                     value={formData.phone}
                     onChange={handleChange}
